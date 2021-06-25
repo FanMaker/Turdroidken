@@ -1,4 +1,4 @@
-# FanMaker Swift SDK for iOS App Development 
+# FanMaker SDK for Android App Development 
 
 ## About
 
