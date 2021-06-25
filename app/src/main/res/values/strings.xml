@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Turducken</string>
+    <string name="fanmaker_sdk_button">FanMaker UI</string>
+</resources>
