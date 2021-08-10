@@ -2,7 +2,7 @@ package com.fanmaker.sdk
 
 class FanMakerSDK {
     companion object {
-        private var apiKey: String = ""
+        var apiKey: String = ""
         var memberID: String = ""
         var studentID: String = ""
         var ticketmasterID: String = ""

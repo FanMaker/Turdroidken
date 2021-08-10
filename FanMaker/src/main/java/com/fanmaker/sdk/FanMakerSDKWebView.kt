@@ -20,7 +20,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.settings.javaScriptEnabled = true
         val jsInterface = FanMakerSDKWebInterface(this,
             { authorized ->
-                var jsString: String = "receiveLocationAuthorization("
+                var jsString: String = "FanMakerReceiveLocationAuthorization("
                 if (authorized) jsString = "${jsString}true)"
                 else jsString = "${jsString}false)"
                 Log.w("FANMAKER", jsString)
@@ -31,7 +31,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
             },
             { location ->
                 val jsString: String =
-                    "receiveLocation({ lat: ${location.latitude}, lng: ${location.longitude} })"
+                    "FanMakerReceiveLocation({ lat: ${location.latitude}, lng: ${location.longitude} })"
                 Log.w("FANMAKER", jsString)
 
                 this@FanMakerSDKWebView.runOnUiThread {
@@ -43,6 +43,8 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val headers: HashMap<String, String> = HashMap<String, String>()
+        headers.put("X-FanMaker-SDK-Version", "0.1.1")
+        headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
 
         if (FanMakerSDK.memberID != "") headers.put("X-Member-ID", FanMakerSDK.memberID)
         if (FanMakerSDK.studentID != "") headers.put("X-Student-ID", FanMakerSDK.studentID)
@@ -54,14 +56,17 @@ class FanMakerSDKWebView : AppCompatActivity() {
         val url = "https://api.fanmaker.com/api/v2/site_details/info"
         val settings = this.getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
         val token = settings.getString("token", "")
+        token?.let {
+            headers.put("X-FanMaker-SessionToken", it)
+        }
+
         val request = object: JsonObjectRequest(Request.Method.GET, url, null,
             { response ->
                 val status = response.getInt("status")
                 if (status == 200) {
                     val data = response.getJSONObject("data")
-                    var sdk_url = data.getString("sdk_url")
+                    val sdk_url = data.getString("sdk_url")
                     Log.w("FANMAKER", sdk_url)
-                    sdk_url = "$sdk_url?token=$token"
                     webView.loadUrl(sdk_url, headers)
                 } else {
                     webView.loadUrl("https://admin.fanmaker.com/500")
@@ -73,7 +78,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         ) {
             override fun getHeaders(): MutableMap<String, String> {
                 val headers = HashMap<String, String>()
-                headers["X-FanMaker-Token"] = "bb460452f81404b2cdf8d5691714115bb1b25905d337cc4ea50c89f327d7209d"
+                headers["X-FanMaker-Token"] = FanMakerSDK.apiKey
                 return headers
             }
         }
