@@ -46,7 +46,7 @@ githubProperties.load(new FileInputStream(rootProject.file("github.properties"))
 ```markdown
 dependencies {
     implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:0.1.0'
+    implementation 'com.fanmaker.sdk:fanmaker:0.1.1'
 	...
 }
 ```
@@ -64,7 +64,7 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         // FanMaker SDK Initialization
-        FanMakerSDK.initialize("<SDK_KEY")
+        FanMakerSDK.initialize("<SDK_KEY>")
         
         . . .
     }
