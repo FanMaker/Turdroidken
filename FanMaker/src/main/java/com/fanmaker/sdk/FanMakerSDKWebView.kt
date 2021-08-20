@@ -43,7 +43,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val headers: HashMap<String, String> = HashMap<String, String>()
-        headers.put("X-FanMaker-SDK-Version", "0.1.1")
+        headers.put("X-FanMaker-SDK-Version", "1.0")
         headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
 
         if (FanMakerSDK.memberID != "") headers.put("X-Member-ID", FanMakerSDK.memberID)
