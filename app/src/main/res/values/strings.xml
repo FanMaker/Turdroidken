@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Turducken</string>
-    <string name="fanmaker_sdk_button">FanMaker UI</string>
+    <string name="fanmaker_sdk_button">Open FanMaker UI as Activity</string>
+    <string name="fanmaker_sdk_fragment_button">Open FanMaker UI as Fragment</string>
 </resources>

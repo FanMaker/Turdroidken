@@ -16,7 +16,7 @@ class MainActivity : AppCompatActivity() {
         FanMakerSDK.initialize("bb460452f81404b2cdf8d5691714115bb1b25905d337cc4ea50c89f327d7209d")
     }
 
-    fun openFanMakerSDKWebView(view: View) {
+    fun setupIdentifiers() {
         val memberID: String = findViewById<EditText>(R.id.memberID).text.toString()
         if (memberID != "") FanMakerSDK.memberID = memberID
 
@@ -31,8 +31,17 @@ class MainActivity : AppCompatActivity() {
 
         val pushToken: String = findViewById<EditText>(R.id.pushToken).text.toString()
         if (pushToken != "") FanMakerSDK.pushNotificationToken = pushToken
+    }
 
+    fun openFanMakerSDKWebView(view: View) {
+        setupIdentifiers()
         val intent = Intent(this, FanMakerSDKWebView::class.java)
+        startActivity(intent)
+    }
+
+    fun openFanMakerSDKWebViewFragment(view: View) {
+        setupIdentifiers()
+        val intent = Intent(this, FanMakerActivity::class.java)
         startActivity(intent)
     }
 }

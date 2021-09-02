@@ -10,13 +10,24 @@
         android:id="@+id/fanmaker_sdk_button"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
         android:onClick="openFanMakerSDKWebView"
         android:text="@string/fanmaker_sdk_button"
-        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintBottom_toBottomOf="@+id/fanmaker_sdk_fragment_button"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/pushToken" />
+
+    <Button
+        android:id="@+id/fanmaker_sdk_fragment_button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:onClick="openFanMakerSDKWebViewFragment"
+        android:text="@string/fanmaker_sdk_fragment_button"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/fanmaker_sdk_button" />
 
     <EditText
         android:id="@+id/studentID"
