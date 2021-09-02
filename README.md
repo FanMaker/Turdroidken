@@ -46,7 +46,7 @@ githubProperties.load(new FileInputStream(rootProject.file("github.properties"))
 ```markdown
 dependencies {
     implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:1.0'
+    implementation 'com.fanmaker.sdk:fanmaker:1.1'
 	...
 }
 ```
@@ -91,6 +91,17 @@ class MyActivity : AppCompatActivity() {
 ```
 
 Then you can call `openFanMakerSDKWebView` when user taps a button, for example.
+
+#### Displaying FanMaker UI as a Fragment
+
+FanMaker SDK also provides a `FanMakerSDKWebViewFragment` class that can be embed into your own activity by dragging a Common -> Fragment component
+from the Palette in the Layout Design view or by adding the following code in your Layout xml file:
+
+```
+<androidx.fragment.app.FragmentContainerView
+        android:id="@+id/fragmentContainerView"
+        android:name="com.fanmaker.sdk.FanMakerSDKWebViewFragment" />
+```
 
 ### Passing Custom Identifiers
 
