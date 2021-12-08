@@ -46,7 +46,7 @@ githubProperties.load(new FileInputStream(rootProject.file("github.properties"))
 ```markdown
 dependencies {
     implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:1.1'
+    implementation 'com.fanmaker.sdk:fanmaker:1.2'
 	...
 }
 ```
@@ -126,6 +126,16 @@ class MyActivity : AppCompatActivity() {
 ```
 
 These identifiers must be set **before** displaying `FanMakerSDKWebView`.
+
+**Note**: All of these identifiers, along with the FanMaker's User ID, are automatically defined when a user successfully logins and become accessible via the following public variables:
+
+```
+FanMakerSDK.userID
+FanMakerSDK.memberID
+FanMakerSDK.studentID
+FanMakerSDK.ticketmasterID
+FanMakerSDK.yinzid
+```
 
 ### Location Tracking
 

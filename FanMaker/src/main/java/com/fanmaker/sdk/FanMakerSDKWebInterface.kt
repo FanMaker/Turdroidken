@@ -9,7 +9,9 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.util.Log
 import android.webkit.JavascriptInterface
+import android.widget.EditText
 import androidx.core.content.ContextCompat
+import org.json.JSONObject
 
 class FanMakerSDKWebInterface(
     private val mContext: Context,
@@ -25,6 +27,18 @@ class FanMakerSDKWebInterface(
         editor.putString("token", token)
         editor.commit()
         Log.w("FANMAKER", "SESSION SAVED")
+    }
+
+    @JavascriptInterface
+    fun setIdentifiers(json: String) {
+        Log.w("FANMAKER", json)
+        val data = JSONObject(json)
+        FanMakerSDK.userID = data.getString("user_id")
+        FanMakerSDK.memberID = data.getString("member_id")
+        FanMakerSDK.studentID = data.getString("student_id")
+        FanMakerSDK.ticketmasterID = data.getString("ticketmaster_id")
+        FanMakerSDK.yinzid = data.getString("yinzid")
+        FanMakerSDK.pushNotificationToken = data.getString("push_token")
     }
 
     @JavascriptInterface

@@ -3,6 +3,7 @@ package com.example.turducken
 import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.EditText
 import com.fanmaker.sdk.FanMakerSDK
@@ -34,7 +35,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     fun openFanMakerSDKWebView(view: View) {
-        setupIdentifiers()
         val intent = Intent(this, FanMakerSDKWebView::class.java)
         startActivity(intent)
     }
