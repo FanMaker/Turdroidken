@@ -51,6 +51,18 @@ dependencies {
 }
 ```
 
+### Step 4 : Add the following permissions to the AndroidManifest.xml
+- Add the following code to the **AndroidManifext.xml** directly after the `<manifest ...>` tag.
+- These allow access to the camera and image gallery for user to upload profile pictures and engage with CrowdCameo.
+
+```markdown
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-feature android:name="android.hardware.camera" android:required="false" />
+<uses-feature android:name="android.hardware.camera.front" android:required="false" />
+```
+
 ### Initialization
 
 To initialize the SDK you need to pass your `<SDK_KEY>` into the FanMaker SDK initializer. You need to call this code in your `MainActivity` class as part of your `onCreate` callback function.
