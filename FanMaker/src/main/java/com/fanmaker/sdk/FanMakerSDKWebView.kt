@@ -1,23 +1,52 @@
 package com.fanmaker.sdk
 
+import android.Manifest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.util.Log
+import android.webkit.PermissionRequest
+import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
 import com.android.volley.Request
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 
 class FanMakerSDKWebView : AppCompatActivity() {
+    private val permission = arrayOf(Manifest.permission.CAMERA,
+        Manifest.permission.RECORD_AUDIO,
+        Manifest.permission.MODIFY_AUDIO_SETTINGS,
+        Manifest.permission.WRITE_EXTERNAL_STORAGE,
+        Manifest.permission.READ_EXTERNAL_STORAGE,
+    )
+    private val requestCode = 1
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.fanmaker_sdk_webview)
 
         val webView = findViewById<WebView>(R.id.fanmaker_sdk_webview)
         webView.webViewClient = WebViewClient()
+        webView.webChromeClient = WebChromeClient()
+
         webView.settings.javaScriptEnabled = true
+        webView.settings.javaScriptEnabled = true
+        webView.settings.javaScriptCanOpenWindowsAutomatically = true
+        webView.settings.domStorageEnabled = true
+        webView.settings.allowContentAccess = true
+        webView.settings.mediaPlaybackRequiresUserGesture = false
+
+        if(!isPermissionGranted()) { askPermissions() }
+
+        webView.webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest?) {
+                request?.grant(request?.resources)
+            }
+        }
+
         val jsInterface = FanMakerSDKWebInterface(this,
             { authorized ->
                 var jsString: String = "FanMakerReceiveLocationAuthorization("
@@ -83,5 +112,17 @@ class FanMakerSDKWebView : AppCompatActivity() {
             }
         }
         queue.add(request)
+    }
+
+    private fun askPermissions() {
+        ActivityCompat.requestPermissions(this, permission, requestCode)
+    }
+
+    private fun isPermissionGranted(): Boolean {
+        permission.forEach {
+            if(ActivityCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED)
+                return false
+        }
+        return true
     }
 }
