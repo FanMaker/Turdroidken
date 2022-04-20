@@ -17,6 +17,7 @@ import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
 import com.android.volley.Request
 import com.android.volley.toolbox.JsonObjectRequest
@@ -29,8 +30,6 @@ import java.util.*
 class FanMakerSDKWebView : AppCompatActivity() {
     private val permission = arrayOf(
         Manifest.permission.CAMERA,
-        Manifest.permission.RECORD_AUDIO,
-        Manifest.permission.MODIFY_AUDIO_SETTINGS,
         Manifest.permission.WRITE_EXTERNAL_STORAGE,
         Manifest.permission.READ_EXTERNAL_STORAGE,
     )
@@ -86,27 +85,56 @@ class FanMakerSDKWebView : AppCompatActivity() {
             }
 
             fun takePhoto() {
-                Intent(MediaStore.ACTION_IMAGE_CAPTURE).also {
-                    takePictureIntent -> takePictureIntent.resolveActivity(applicationContext.packageManager)
-                    if(takePictureIntent != null) {
-                        val photo: File = createFile()
-                        photo?.also {
-                            photoURI = FileProvider.getUriForFile(applicationContext, "com.fanmaker.sdk.fileprovider", it)
-                            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
-                            takePictureIntent.putExtra("android.intent.extras.CAMERA_FACING", Camera.CameraInfo.CAMERA_FACING_FRONT);
-                            startActivityForResult(takePictureIntent, MEDIA_RESULTCODE)
+                val hasCamPermissions = (ContextCompat.checkSelfPermission(applicationContext, android.Manifest.permission.CAMERA) ==
+                    PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(applicationContext,
+                    android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+
+                if(hasCamPermissions) {
+                    Intent(MediaStore.ACTION_IMAGE_CAPTURE).also {
+                            takePictureIntent -> takePictureIntent.resolveActivity(applicationContext.packageManager)
+                        if(takePictureIntent != null) {
+                            val photo: File = createFile()
+                            photo?.also {
+                                photoURI = FileProvider.getUriForFile(applicationContext, "com.fanmaker.sdk.fileprovider", it)
+                                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
+                                takePictureIntent.putExtra("android.intent.extras.CAMERA_FACING", Camera.CameraInfo.CAMERA_FACING_FRONT);
+                                startActivityForResult(takePictureIntent, MEDIA_RESULTCODE)
+                            }
                         }
                     }
+                } else {
+                    genericAlert("Please make sure the app has access to your Camera and Media Gallery.")
+                    uploadMessage?.onReceiveValue(null)
+                    uploadMessage = null
                 }
             }
 
+            fun genericAlert(message: String) {
+                val dialogBuilder = AlertDialog.Builder(this@FanMakerSDKWebView)
+
+                dialogBuilder.setTitle("Unable to complete your request")
+                dialogBuilder.setMessage(message)
+                dialogBuilder.setCancelable(false)
+                dialogBuilder.setNegativeButton("Close", DialogInterface.OnClickListener { dialog, id -> dialog.cancel() })
+                var alert = dialogBuilder.create()
+                alert.show()
+            }
+
             fun openPicker(fileChooserParams: FileChooserParams?) {
-                val intent = fileChooserParams!!.createIntent()
-                try {
-                    startActivityForResult(intent, REQUEST_SELECT_FILE)
-                } catch (e: ActivityNotFoundException) {
+                val hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+
+                if(hasFilePermissions) {
+                    val intent = fileChooserParams!!.createIntent()
+                    try {
+                        startActivityForResult(intent, REQUEST_SELECT_FILE)
+                    } catch (e: ActivityNotFoundException) {
+                        uploadMessage = null
+                        Toast.makeText(applicationContext, "Cannot Open File Picker", Toast.LENGTH_LONG).show()
+                    }
+                } else {
+                    genericAlert("Please make sure the app has access to your Media Gallery")
+                    uploadMessage?.onReceiveValue(null)
                     uploadMessage = null
-                    Toast.makeText(applicationContext, "Cannot Open File Chooser", Toast.LENGTH_LONG).show()
                 }
             }
 
@@ -190,7 +218,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 if (status == 200) {
                     val data = response.getJSONObject("data")
                     val sdk_url = data.getString("sdk_url")
-                    Log.w("FANMAKER", sdk_url)
                     webView.loadUrl(sdk_url, headers)
                 } else {
                     webView.loadUrl("https://admin.fanmaker.com/500")
@@ -223,9 +250,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data);
-        Log.w("FANMAKER ACTIVITY REQUEST CODE", requestCode.toString())
-        Log.w("FANMAKER ACTIVITY RESULT CODE", resultCode.toString())
-        Log.w("FANMAKER ACTIVITY RESULT OKAY?", (resultCode == Activity.RESULT_OK).toString())
         if(requestCode == MEDIA_RESULTCODE) {
             if(resultCode == Activity.RESULT_OK) {
                 Log.w("PHOTO URI", photoURI.toString())
