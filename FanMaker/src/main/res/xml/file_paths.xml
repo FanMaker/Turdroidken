@@ -1,0 +1,14 @@
+<paths>
+    <files-path
+        name="images"
+        path="Android/data/${packageName}/files/Pictures" />
+    <files-path
+        name="dev"
+        path="/data/user/0/${packageName}/files/" />
+    <cache-path
+        name="external_cache"
+        path="." />
+    <files-path
+        name="files"
+        path="." />
+</paths>

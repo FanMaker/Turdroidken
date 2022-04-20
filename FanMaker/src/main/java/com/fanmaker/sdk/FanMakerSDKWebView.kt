@@ -1,34 +1,47 @@
 package com.fanmaker.sdk
 
 import android.Manifest
+import android.app.Activity
+import android.app.AlertDialog
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.DialogInterface
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.hardware.Camera
 import android.net.Uri
-import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import android.util.Log
 import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
+import androidx.core.content.FileProvider
 import com.android.volley.Request
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
+import java.io.File
+import java.text.SimpleDateFormat
+import java.util.*
+
 
 class FanMakerSDKWebView : AppCompatActivity() {
-    private val permission = arrayOf(Manifest.permission.CAMERA,
+    private val permission = arrayOf(
+        Manifest.permission.CAMERA,
         Manifest.permission.RECORD_AUDIO,
         Manifest.permission.MODIFY_AUDIO_SETTINGS,
         Manifest.permission.WRITE_EXTERNAL_STORAGE,
         Manifest.permission.READ_EXTERNAL_STORAGE,
     )
-    private val FILECHOOSER_RESULTCODE = 1
+    private val MEDIA_RESULTCODE = 1
+    private val PERMISSION_RESULTCODE = 2
     private val REQUEST_SELECT_FILE = 100
 
     private var mUploadMessage: ValueCallback<Uri>? = null
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
+    private var imagePath: String? = null;
+    private lateinit var photoURI : Uri;
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -56,7 +69,63 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 val intent = Intent(Intent.ACTION_GET_CONTENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
                 intent.type = "*/*"
-                startActivityForResult(Intent.createChooser(intent, "File Chooser"), FILECHOOSER_RESULTCODE)
+                startActivityForResult(Intent.createChooser(intent, "File Chooser"), MEDIA_RESULTCODE)
+            }
+
+            private fun createFile(): File {
+                val timestamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
+                val storageDir: File? = getFilesDir()
+
+                return File.createTempFile(
+                    "JPEG_${timestamp}_",
+                    ".jpg",
+                    storageDir
+                ).apply {
+                    imagePath = absolutePath
+                }
+            }
+
+            fun takePhoto() {
+                Intent(MediaStore.ACTION_IMAGE_CAPTURE).also {
+                    takePictureIntent -> takePictureIntent.resolveActivity(applicationContext.packageManager)
+                    if(takePictureIntent != null) {
+                        val photo: File = createFile()
+                        photo?.also {
+                            photoURI = FileProvider.getUriForFile(applicationContext, "com.fanmaker.sdk.fileprovider", it)
+                            takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
+                            takePictureIntent.putExtra("android.intent.extras.CAMERA_FACING", Camera.CameraInfo.CAMERA_FACING_FRONT);
+                            startActivityForResult(takePictureIntent, MEDIA_RESULTCODE)
+                        }
+                    }
+                }
+            }
+
+            fun openPicker(fileChooserParams: FileChooserParams?) {
+                val intent = fileChooserParams!!.createIntent()
+                try {
+                    startActivityForResult(intent, REQUEST_SELECT_FILE)
+                } catch (e: ActivityNotFoundException) {
+                    uploadMessage = null
+                    Toast.makeText(applicationContext, "Cannot Open File Chooser", Toast.LENGTH_LONG).show()
+                }
+            }
+
+            private fun selectImage(fileChooserParams: FileChooserParams?) {
+                val dialogBuilder = AlertDialog.Builder(this@FanMakerSDKWebView)
+
+                dialogBuilder.setTitle("Complete action using?")
+                dialogBuilder.setCancelable(false)
+                dialogBuilder.setPositiveButton("Camera", DialogInterface.OnClickListener { dialog, id ->
+                    takePhoto()
+                    dialog.cancel()
+                })
+                dialogBuilder.setNegativeButton("Gallery", DialogInterface.OnClickListener { dialog, id ->
+                    openPicker(fileChooserParams)
+                    dialog.cancel()
+                })
+
+                var alert = dialogBuilder.create()
+                alert.show()
             }
 
             override fun onShowFileChooser(
@@ -66,21 +135,10 @@ class FanMakerSDKWebView : AppCompatActivity() {
             ): Boolean {
                 uploadMessage?.onReceiveValue(null)
                 uploadMessage = null
-
                 uploadMessage = filePathCallback
 
-                val intent = fileChooserParams!!.createIntent()
-                try {
-                    startActivityForResult(intent, REQUEST_SELECT_FILE)
-                } catch (e: ActivityNotFoundException) {
-                    uploadMessage = null
-                    Toast.makeText(applicationContext, "Cannot Open File Chooser", Toast.LENGTH_LONG).show()
-                    return false
-                }
-
+                selectImage(fileChooserParams)
                 return true
-
-//                return super.onShowFileChooser(webView, filePathCallback, fileChooserParams)
             }
         }
 
@@ -152,7 +210,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
     }
 
     private fun askPermissions() {
-        ActivityCompat.requestPermissions(this, permission, FILECHOOSER_RESULTCODE)
+        ActivityCompat.requestPermissions(this, permission, PERMISSION_RESULTCODE)
     }
 
     private fun isPermissionGranted(): Boolean {
@@ -164,26 +222,31 @@ class FanMakerSDKWebView : AppCompatActivity() {
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (requestCode === REQUEST_SELECT_FILE) {
-                if (uploadMessage == null)
-                    return
-                print("result code = " + resultCode)
-                var results: Array<Uri>? = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+        super.onActivityResult(requestCode, resultCode, data);
+        Log.w("FANMAKER ACTIVITY REQUEST CODE", requestCode.toString())
+        Log.w("FANMAKER ACTIVITY RESULT CODE", resultCode.toString())
+        Log.w("FANMAKER ACTIVITY RESULT OKAY?", (resultCode == Activity.RESULT_OK).toString())
+        if(requestCode == MEDIA_RESULTCODE) {
+            if(resultCode == Activity.RESULT_OK) {
+                Log.w("PHOTO URI", photoURI.toString())
+                var results: Array<Uri>? = arrayOf(photoURI)
+
                 uploadMessage?.onReceiveValue(results)
                 uploadMessage = null
+            } else {
+                uploadMessage?.onReceiveValue(null)
+                uploadMessage = null
             }
-        } else if (requestCode === FILECHOOSER_RESULTCODE) {
-            if (null == mUploadMessage)
+        } else if(requestCode == REQUEST_SELECT_FILE) {
+            Log.w("PICKER RESULTS", data.toString())
+            if (uploadMessage == null)
                 return
-            // Use MainActivity.RESULT_OK if you're implementing WebView inside Fragment
-            // Use RESULT_OK only if you're implementing WebView inside an Activity
-            val result = if (intent == null || resultCode !== RESULT_OK) null else intent.data
-            mUploadMessage?.onReceiveValue(result)
-            mUploadMessage = null
-        } else
-            Toast.makeText(applicationContext, "Failed to Upload Image", Toast.LENGTH_LONG).show()
-
-        super.onActivityResult(requestCode, resultCode, data)
+            var results: Array<Uri>? = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            Log.w("SELECTED IMAGE DATA", data.toString())
+            Log.w("SELECTED IMAGE PATH", WebChromeClient.FileChooserParams.parseResult(resultCode, data).toString())
+            Log.w("SELECTED IMAGE RESULTS", results.toString())
+            uploadMessage?.onReceiveValue(results)
+            uploadMessage = null
+        }
     }
 }
