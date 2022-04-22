@@ -3,21 +3,22 @@ package com.fanmaker.sdk
 import android.Manifest
 import android.app.Activity
 import android.app.AlertDialog
-import android.content.ActivityNotFoundException
-import android.content.Context
-import android.content.DialogInterface
-import android.content.Intent
+import android.content.*
 import android.content.pm.PackageManager
 import android.hardware.camera2.CameraDevice
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.HandlerThread
+import android.provider.MediaStore
 import android.util.Log
 import android.view.View
 import android.webkit.*
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.core.app.ActivityCompat
@@ -30,6 +31,7 @@ import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 
 class FanMakerSDKWebView : AppCompatActivity() {
@@ -41,6 +43,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
     private val MEDIA_RESULTCODE = 1
     private val PERMISSION_RESULTCODE = 2
     private val REQUEST_SELECT_FILE = 100
+    private val FILENAME_FORMAT = "yyyyMMdd-HHmmssSSS"
 
     private var mUploadMessage: ValueCallback<Uri>? = null
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
@@ -48,6 +51,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
     private lateinit var photoURI : Uri;
 
     private lateinit var cameraExecutor: ExecutorService
+    private var imageCapture: ImageCapture? = null
 
     private lateinit var backgroundHandlerThread: HandlerThread
     private lateinit var backgroundHandler: android.os.Handler
@@ -76,11 +80,12 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
         viewBinding = FanmakerSdkWebviewBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
-        viewBinding.startCameraButton.setOnClickListener { startCamera() }
+//        viewBinding.startCameraButton.setOnClickListener { startCamera() }
+        viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
         viewBinding.closeCameraButton.setOnClickListener { closeCamera() }
         viewBinding.switchCameraButton.setOnClickListener { flipCamera() }
 
-//        cameraExecutor = Executors.newSingleThreadExecutor()
+        cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = findViewById<WebView>(R.id.fanmaker_sdk_webview)
         webView.webViewClient = WebViewClient()
@@ -202,7 +207,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 dialogBuilder.setTitle("Complete action using?")
                 dialogBuilder.setCancelable(false)
                 dialogBuilder.setPositiveButton("Camera", DialogInterface.OnClickListener { dialog, id ->
-//                    takePhoto()
+                    startCamera()
                     dialog.cancel()
                 })
                 dialogBuilder.setNegativeButton("Gallery", DialogInterface.OnClickListener { dialog, id ->
@@ -223,8 +228,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 uploadMessage = null
                 uploadMessage = filePathCallback
 
-//                selectImage(fileChooserParams)
-//                takePhoto()
+                selectImage(fileChooserParams)
                 return true
             }
         }
@@ -293,6 +297,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
             }
         }
         queue.add(request)
+
     }
 
     private fun startCamera() {
@@ -314,11 +319,13 @@ class FanMakerSDKWebView : AppCompatActivity() {
                     it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
                 }
 
+            imageCapture = ImageCapture.Builder().build()
+
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview)
+                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
             } catch(exc: Exception) {
-                Log.e("TAKE PHOTO EXCEPTION", "BINDING FAILED", exc)
+                Log.e("START CAMERA EXCEPTION", "BINDING FAILED", exc)
             }
         }, ContextCompat.getMainExecutor(this))
     }
@@ -336,10 +343,40 @@ class FanMakerSDKWebView : AppCompatActivity() {
         startCamera()
     }
 
-//    fun startCamera() {
-//        val intent = Intent(this, FanMakerSDKCameraView::class.java)
-//        startActivity(intent)
-//    }
+    private fun takePhoto() {
+        val imageCapture = imageCapture ?: return
+        val name = SimpleDateFormat(FILENAME_FORMAT, Locale.US)
+            .format(System.currentTimeMillis())
+
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, name)
+            put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+            if(Build.VERSION.SDK_INT > Build.VERSION_CODES.P) {
+                put(MediaStore.Images.Media.RELATIVE_PATH, "Pictures/FanMaker")
+            }
+        }
+
+        val outputOptions = ImageCapture.OutputFileOptions
+            .Builder(contentResolver,
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            ).build()
+
+        imageCapture.takePicture(
+            outputOptions,
+            ContextCompat.getMainExecutor(this),
+            object : ImageCapture.OnImageSavedCallback {
+                override fun onError(exc: ImageCaptureException) {
+                    Log.e("IMAGE CAPTURE FAILURE", "Photo capture failed: ${exc.message}", exc)
+                }
+
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    val msg = "Photo saved: ${output.savedUri}"
+                    Log.w("IMAGE CAPTURE SUCCESS", msg)
+                }
+            }
+        )
+    }
 
     private fun askPermissions() {
         ActivityCompat.requestPermissions(this, permission, PERMISSION_RESULTCODE)
@@ -377,5 +414,10 @@ class FanMakerSDKWebView : AppCompatActivity() {
             uploadMessage?.onReceiveValue(results)
             uploadMessage = null
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        cameraExecutor.shutdown()
     }
 }
