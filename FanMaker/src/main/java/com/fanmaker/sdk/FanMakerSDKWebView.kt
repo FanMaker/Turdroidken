@@ -1,7 +1,6 @@
 package com.fanmaker.sdk
 
 import android.Manifest
-import android.app.Activity
 import android.app.AlertDialog
 import android.content.*
 import android.content.pm.PackageManager
@@ -27,7 +26,6 @@ import com.android.volley.Request
 import com.android.volley.toolbox.JsonObjectRequest
 import com.android.volley.toolbox.Volley
 import com.fanmaker.sdk.databinding.FanmakerSdkWebviewBinding
-import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
@@ -44,11 +42,10 @@ class FanMakerSDKWebView : AppCompatActivity() {
     private val PERMISSION_RESULTCODE = 2
     private val REQUEST_SELECT_FILE = 100
     private val FILENAME_FORMAT = "yyyyMMdd-HHmmssSSS"
+    private var cameraId = 1
 
     private var mUploadMessage: ValueCallback<Uri>? = null
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
-    private var imagePath: String? = null;
-    private lateinit var photoURI : Uri;
 
     private lateinit var cameraExecutor: ExecutorService
     private var imageCapture: ImageCapture? = null
@@ -67,8 +64,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
         )
     }
 
-    private var cameraId = 1
-
     private fun stopBackgroundThread() {
         backgroundHandlerThread.quitSafely()
         backgroundHandlerThread.join()
@@ -80,7 +75,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
         viewBinding = FanmakerSdkWebviewBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
-//        viewBinding.startCameraButton.setOnClickListener { startCamera() }
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
         viewBinding.closeCameraButton.setOnClickListener { closeCamera() }
         viewBinding.switchCameraButton.setOnClickListener { flipCamera() }
@@ -112,51 +106,11 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 startActivityForResult(Intent.createChooser(intent, "File Chooser"), MEDIA_RESULTCODE)
             }
 
-            private fun createFile(): File {
-                val timestamp: String = SimpleDateFormat("yyyyMMdd_HHmmss").format(Date())
-                val storageDir: File? = getFilesDir()
-
-                return File.createTempFile(
-                    "JPEG_${timestamp}_",
-                    ".jpg",
-                    storageDir
-                ).apply {
-                    imagePath = absolutePath
-                }
-            }
-
-//            fun takePhoto() {
-//                val hasCamPermissions = (ContextCompat.checkSelfPermission(applicationContext, android.Manifest.permission.CAMERA) ==
-//                    PackageManager.PERMISSION_GRANTED && ContextCompat.checkSelfPermission(applicationContext,
-//                    android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
-//
-//                if(hasCamPermissions) {
-//                    Intent(MediaStore.ACTION_IMAGE_CAPTURE).also {
-//                            takePictureIntent -> takePictureIntent.resolveActivity(applicationContext.packageManager)
-//                        if(takePictureIntent != null) {
-//                            val photo: File = createFile()
-//                            photo?.also {
-//                                photoURI = FileProvider.getUriForFile(applicationContext, "com.fanmaker.sdk.fileprovider", it)
-//                                takePictureIntent.putExtra(MediaStore.EXTRA_OUTPUT, photoURI)
-//                                takePictureIntent.putExtra("android.intent.extras.CAMERA_FACING", Camera.CameraInfo.CAMERA_FACING_FRONT);
-//                                startActivityForResult(takePictureIntent, MEDIA_RESULTCODE)
-//                            }
-//                        }
-//                    }
-//                } else {
-//                    genericAlert("Please make sure the app has access to your Camera and Media Gallery.")
-//                    uploadMessage?.onReceiveValue(null)
-//                    uploadMessage = null
-//                }
-//            }
-
             private val cameraStateCallback = object : CameraDevice.StateCallback() {
-                override fun onOpened(camera: CameraDevice) {
-                    Log.w("CAMERA TRIED TO OPEN", "It probably didn't")
-                }
+                override fun onOpened(camera: CameraDevice) {}
 
                 override fun onDisconnected(cameraDevice: CameraDevice) {
-                    Log.w("CAMERA DISCONNECTED", "Bummer")
+                    Log.w("CAMERA", "DISCONNECTED")
                 }
 
                 override fun onError(cameraDevice: CameraDevice, error: Int) {
@@ -336,6 +290,8 @@ class FanMakerSDKWebView : AppCompatActivity() {
         viewBinding.imageCaptureButton.setVisibility(View.GONE)
         viewBinding.switchCameraButton.setVisibility(View.GONE)
         fanMakerCameraProvider.unbindAll()
+        uploadMessage?.onReceiveValue(null)
+        uploadMessage = null
     }
 
     private fun flipCamera() {
@@ -371,8 +327,11 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 }
 
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    val msg = "Photo saved: ${output.savedUri}"
-                    Log.w("IMAGE CAPTURE SUCCESS", msg)
+                    var results: Array<Uri>? = arrayOf(output.savedUri!!)
+
+                    uploadMessage?.onReceiveValue(results)
+                    uploadMessage = null
+                    closeCamera()
                 }
             }
         )
@@ -392,25 +351,10 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data);
-        if(requestCode == MEDIA_RESULTCODE) {
-            if(resultCode == Activity.RESULT_OK) {
-                Log.w("PHOTO URI", photoURI.toString())
-                var results: Array<Uri>? = arrayOf(photoURI)
-
-                uploadMessage?.onReceiveValue(results)
-                uploadMessage = null
-            } else {
-                uploadMessage?.onReceiveValue(null)
-                uploadMessage = null
-            }
-        } else if(requestCode == REQUEST_SELECT_FILE) {
-            Log.w("PICKER RESULTS", data.toString())
+        if(requestCode == REQUEST_SELECT_FILE) {
             if (uploadMessage == null)
                 return
             var results: Array<Uri>? = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-            Log.w("SELECTED IMAGE DATA", data.toString())
-            Log.w("SELECTED IMAGE PATH", WebChromeClient.FileChooserParams.parseResult(resultCode, data).toString())
-            Log.w("SELECTED IMAGE RESULTS", results.toString())
             uploadMessage?.onReceiveValue(results)
             uploadMessage = null
         }
