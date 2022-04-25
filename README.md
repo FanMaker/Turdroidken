@@ -50,6 +50,19 @@ dependencies {
 	...
 }
 ```
+- inside dependencies of the build.gradle of app module, make sure that you set the `compleSdkVersion` and `targetSdkVersion` to 31
+```markdown
+  android {
+    compileSdkVersion 31
+    ...
+    
+    defaultConfig {
+      ...
+      targetSdkVersion 31
+      ...
+    }
+  }
+```
 
 ### Step 4 : Add the following permissions to the AndroidManifest.xml
 - Add the following code to the **AndroidManifext.xml** directly after the `<manifest ...>` tag.
@@ -61,6 +74,13 @@ dependencies {
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 <uses-feature android:name="android.hardware.camera" android:required="false" />
 <uses-feature android:name="android.hardware.camera.front" android:required="false" />
+```
+
+NOTE: if you are targeting SDK Version 31 or Higher, you need to make sure any activity that includes an `intent-filter` has `android:exported="true|false"` like so:
+``` markdown
+  <activity android:name=".MainActivity" android:exported="true">
+     <intent-filter>
+     ...
 ```
 
 ### Initialization
