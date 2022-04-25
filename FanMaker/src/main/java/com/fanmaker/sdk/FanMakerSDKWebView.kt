@@ -14,6 +14,7 @@ import android.util.Log
 import android.view.View
 import android.webkit.*
 import android.widget.Toast
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageCapture
@@ -54,6 +55,8 @@ class FanMakerSDKWebView : AppCompatActivity() {
     private lateinit var backgroundHandler: android.os.Handler
 
     private lateinit var fanMakerCameraProvider: ProcessCameraProvider
+    private var camPermissionMethod: String? = null
+    private var fanMakerFileChooserParams: WebChromeClient.FileChooserParams? = null
 
     private lateinit var viewBinding: FanmakerSdkWebviewBinding
     private fun startBackgroundThread() {
@@ -91,8 +94,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.settings.allowContentAccess = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
 
-        if(!isPermissionGranted()) { askPermissions() }
-
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 request?.grant(request?.resources)
@@ -105,7 +106,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 intent.type = "*/*"
                 startActivityForResult(Intent.createChooser(intent, "File Chooser"), MEDIA_RESULTCODE)
             }
-
             private val cameraStateCallback = object : CameraDevice.StateCallback() {
                 override fun onOpened(camera: CameraDevice) {}
 
@@ -126,39 +126,10 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 }
             }
 
-            fun genericAlert(message: String) {
-                val dialogBuilder = AlertDialog.Builder(this@FanMakerSDKWebView)
-
-                dialogBuilder.setTitle("Unable to complete your request")
-                dialogBuilder.setMessage(message)
-                dialogBuilder.setCancelable(false)
-                dialogBuilder.setNegativeButton("Close", DialogInterface.OnClickListener { dialog, id -> dialog.cancel() })
-                var alert = dialogBuilder.create()
-                alert.show()
-            }
-
-            fun openPicker(fileChooserParams: FileChooserParams?) {
-                val hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
-
-                if(hasFilePermissions) {
-                    val intent = fileChooserParams!!.createIntent()
-                    try {
-                        startActivityForResult(intent, REQUEST_SELECT_FILE)
-                    } catch (e: ActivityNotFoundException) {
-                        uploadMessage = null
-                        Toast.makeText(applicationContext, "Cannot Open File Picker", Toast.LENGTH_LONG).show()
-                    }
-                } else {
-                    genericAlert("Please make sure the app has access to your Media Gallery")
-                    uploadMessage?.onReceiveValue(null)
-                    uploadMessage = null
-                }
-            }
-
             private fun selectImage(fileChooserParams: FileChooserParams?) {
                 val dialogBuilder = AlertDialog.Builder(this@FanMakerSDKWebView)
 
-                dialogBuilder.setTitle("Complete action using?")
+                dialogBuilder.setTitle("Please Select:")
                 dialogBuilder.setCancelable(false)
                 dialogBuilder.setPositiveButton("Camera", DialogInterface.OnClickListener { dialog, id ->
                     startCamera()
@@ -182,6 +153,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 uploadMessage = null
                 uploadMessage = filePathCallback
 
+                fanMakerFileChooserParams = fileChooserParams
                 selectImage(fileChooserParams)
                 return true
             }
@@ -253,34 +225,70 @@ class FanMakerSDKWebView : AppCompatActivity() {
         queue.add(request)
     }
 
-    private fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(applicationContext)
-        cameraProviderFuture.addListener({
-            val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-            fanMakerCameraProvider = cameraProvider
+    fun genericAlert(message: String) {
+        val dialogBuilder = AlertDialog.Builder(this@FanMakerSDKWebView)
 
-            var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-            if(cameraId != 1) { cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA }
+//        dialogBuilder.setTitle("Unable to complete your request")
+        dialogBuilder.setMessage(message)
+        dialogBuilder.setCancelable(false)
+        dialogBuilder.setNegativeButton("Close", DialogInterface.OnClickListener { dialog, id -> dialog.cancel() })
+        var alert = dialogBuilder.create()
+        alert.show()
+    }
 
-            val preview = Preview.Builder()
-                .build()
-                .also() {
-                    viewBinding.viewFinder.setVisibility(View.VISIBLE)
-                    viewBinding.closeCameraButton.setVisibility(View.VISIBLE)
-                    viewBinding.imageCaptureButton.setVisibility(View.VISIBLE)
-                    viewBinding.switchCameraButton.setVisibility(View.VISIBLE)
-                    it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
-                }
+    fun openPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
+        val hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
 
-            imageCapture = ImageCapture.Builder().build()
-
+        if(hasFilePermissions) {
+            val intent = fileChooserParams!!.createIntent()
             try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
-            } catch(exc: Exception) {
-                Log.e("START CAMERA EXCEPTION", "BINDING FAILED", exc)
+                startActivityForResult(intent, REQUEST_SELECT_FILE)
+            } catch (e: ActivityNotFoundException) {
+                uploadMessage = null
+                Toast.makeText(applicationContext, "Cannot Open File Picker", Toast.LENGTH_LONG).show()
             }
-        }, ContextCompat.getMainExecutor(this))
+        } else {
+            camPermissionMethod = "openPicker"
+            askPermissions()
+        }
+    }
+
+    private fun startCamera() {
+        val hasCamPermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+                && ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+
+        if(hasCamPermissions) {
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(applicationContext)
+            cameraProviderFuture.addListener({
+                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
+                fanMakerCameraProvider = cameraProvider
+
+                var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+                if(cameraId != 1) { cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA }
+
+                val preview = Preview.Builder()
+                    .build()
+                    .also() {
+                        viewBinding.viewFinder.setVisibility(View.VISIBLE)
+                        viewBinding.closeCameraButton.setVisibility(View.VISIBLE)
+                        viewBinding.imageCaptureButton.setVisibility(View.VISIBLE)
+                        viewBinding.switchCameraButton.setVisibility(View.VISIBLE)
+                        it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+                    }
+
+                imageCapture = ImageCapture.Builder().build()
+
+                try {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
+                } catch(exc: Exception) {
+                    Log.e("START CAMERA EXCEPTION", "BINDING FAILED", exc)
+                }
+            }, ContextCompat.getMainExecutor(this))
+        } else {
+            camPermissionMethod = "startCamera"
+            askPermissions()
+        }
     }
 
     private fun closeCamera() {
@@ -336,8 +344,23 @@ class FanMakerSDKWebView : AppCompatActivity() {
         )
     }
 
+    private val permReqLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { permissions ->
+        val granted = permissions.entries.all { it.value == true }
+        if (granted) {
+            if(camPermissionMethod == "startCamera") { startCamera() }
+            else if(camPermissionMethod == "openPicker") { openPicker(fanMakerFileChooserParams) }
+            camPermissionMethod = null
+        } else {
+            camPermissionMethod = null
+            genericAlert("Please make sure the app has access to your Camera and Media Gallery to use this feature.")
+            uploadMessage?.onReceiveValue(null)
+            uploadMessage = null
+        }
+    }
+
     private fun askPermissions() {
-        ActivityCompat.requestPermissions(this, permission, PERMISSION_RESULTCODE)
+//        ActivityCompat.requestPermissions(this, permission, PERMISSION_RESULTCODE)
+        permReqLauncher.launch(permission)
     }
 
     private fun isPermissionGranted(): Boolean {

@@ -145,7 +145,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
             private fun selectImage(fileChooserParams: FileChooserParams?) {
                 val dialogBuilder = AlertDialog.Builder(context)
 
-                dialogBuilder.setTitle("Complete action using?")
+                dialogBuilder.setTitle("Please Select:")
                 dialogBuilder.setCancelable(false)
                 dialogBuilder.setPositiveButton("Camera", DialogInterface.OnClickListener { dialog, id ->
                     startCamera()
@@ -248,7 +248,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
     fun genericAlert(message: String) {
         val dialogBuilder = AlertDialog.Builder(context)
 
-        dialogBuilder.setTitle("Unable to complete your request")
+//        dialogBuilder.setTitle("Unable to complete your request")
         dialogBuilder.setMessage(message)
         dialogBuilder.setCancelable(false)
         dialogBuilder.setNegativeButton("Close", DialogInterface.OnClickListener { dialog, id -> dialog.cancel() })
