@@ -9,4 +9,56 @@
         android:id="@+id/fanmaker_sdk_webview"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
+
+    <androidx.camera.view.PreviewView
+        android:id="@+id/viewFinder"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        android:layout_x="0dp"
+        android:layout_y="0dp"/>
+
+    <ImageButton
+        android:id="@+id/image_capture_button"
+        android:layout_width="@dimen/round_button_large"
+        android:layout_height="@dimen/round_button_large"
+        android:layout_marginBottom="@dimen/shutter_button_margin"
+        android:visibility="gone"
+        android:layout_x="154dp"
+        android:layout_y="573dp"
+        android:elevation="2dp"
+        android:scaleType="fitCenter"
+        android:background="@drawable/ic_shutter"
+        android:layout_gravity="bottom|center"
+        />
+
+    <ImageButton
+        android:id="@+id/switch_camera_button"
+        android:layout_width="@dimen/round_button_medium"
+        android:layout_height="@dimen/round_button_medium"
+        android:layout_marginBottom="@dimen/margin_xlarge"
+        android:layout_marginStart="@dimen/margin_small"
+        android:visibility="gone"
+        android:padding="@dimen/spacing_small"
+        android:scaleType="fitCenter"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_switch"
+        android:layout_gravity="bottom|left"
+        />
+
+    <ImageButton
+        android:id="@+id/close_camera_button"
+        android:layout_width="@dimen/round_button_medium"
+        android:layout_height="@dimen/round_button_medium"
+        android:layout_marginEnd="25dp"
+        android:layout_marginTop="25dp"
+        android:scaleType="fitCenter"
+        android:background="@android:color/transparent"
+        android:src="@drawable/ic_close"
+        android:visibility="gone"
+        android:layout_x="154dp"
+        android:layout_y="573dp"
+        android:elevation="2dp"
+        android:layout_gravity="top|right"
+        />
 </FrameLayout>
