@@ -251,7 +251,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
             }
         }
         queue.add(request)
-
     }
 
     private fun startCamera() {
