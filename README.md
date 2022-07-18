@@ -150,6 +150,7 @@ class MyActivity : AppCompatActivity() {
         FanMakerSDK.studentID = <studentID>
         FanMakerSDK.ticketmasterID = <ticketmasterID>
         FanMakerSDK.yinzid = <yinzid>
+        FanMakerSDK.pushNotificationToken = <pushToken>
     
         val intent = Intent(this, FanMakerSDKWebView::class.java)
         startActivity(intent)
@@ -167,6 +168,7 @@ FanMakerSDK.memberID
 FanMakerSDK.studentID
 FanMakerSDK.ticketmasterID
 FanMakerSDK.yinzid
+FanMakerSDK.pushNotificationToken
 ```
 
 ### Location Tracking
