@@ -28,7 +28,7 @@ class FanMakerSDKHttp(val context: Context) {
 
     fun post(
         path: String,
-        params: Map<String, String>,
+        params: Map<String, Any>,
         onSuccess: (JSONObject) -> Unit,
         onError: (Int, String) -> Unit
     ) {
