@@ -21,7 +21,13 @@ class FanMakerSDKHttp(val context: Context) {
                     onError(status, message)
                 }
             },
-            { error -> onError(error.networkResponse.statusCode, error.message.toString()) }
+            { error ->
+                try {
+                    onError(error.networkResponse.statusCode, error.message.toString())
+                } catch (err: java.lang.Exception) {
+                    Log.e(TAG, err.localizedMessage)
+                }
+            }
         )
         queue.add(request)
     }
@@ -43,7 +49,13 @@ class FanMakerSDKHttp(val context: Context) {
                     onError(status, response.getString("message").toString())
                 }
             },
-            { error -> onError(error.networkResponse.statusCode, error.message.toString()) }
+            { error ->
+                try {
+                    onError(error.networkResponse.statusCode, error.message.toString())
+                } catch (err: java.lang.Exception) {
+                    Log.e(TAG, err.localizedMessage)
+                }
+            }
         ) {
             override fun getFanMakerToken(): String {
                 val settings = context.getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
@@ -51,5 +63,9 @@ class FanMakerSDKHttp(val context: Context) {
             }
         }
         queue.add(request)
+    }
+
+    companion object {
+        const val TAG = "FanMakerSDKHttp"
     }
 }
