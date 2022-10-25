@@ -9,11 +9,13 @@ import org.altbeacon.beacon.BeaconManager
 import org.altbeacon.beacon.BeaconParser
 import org.altbeacon.beacon.MonitorNotifier
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 
 class FanMakerSDKBeaconManager(private val application: Application) {
     private val beaconManager = BeaconManager.getInstanceForApplication(application)
     var eventHandler: FanMakerSDKBeaconEventHandler? = null
+    var beaconUniquenessThrottle = 60000
 
     init {
         beaconManager.beaconParsers.clear()
@@ -42,6 +44,22 @@ class FanMakerSDKBeaconManager(private val application: Application) {
 
     fun fetchBeaconRegions(onSuccess: (Array<FanMakerSDKBeaconRegion>) -> Unit) {
         val http = FanMakerSDKHttp(application.applicationContext)
+
+        http.get("site_details/info", { response ->
+            try {
+                val data = response.getJSONObject("data")
+                val site_features = data.getJSONObject("site_features")
+                val beacons = site_features.getJSONObject("beacons")
+                beaconUniquenessThrottle =
+                    beacons.getString("beaconUniquenessThrottle").toInt() * 1000
+                Log.d(TAG, "beaconUniquenessThrottle set to $beaconUniquenessThrottle milliseconds")
+            } catch (err: JSONException) {
+                Log.e(TAG, err.toString())
+            }
+        }, { errorCode, errorMessage ->
+            Log.e(TAG, "$errorCode: $errorMessage")
+        })
+
         http.get("beacon_regions", { response ->
             val regionsData = response.getJSONArray("data")
             val regions = Array(regionsData.length()) { index ->
@@ -188,7 +206,7 @@ class FanMakerSDKBeaconManager(private val application: Application) {
         if (sameBeaconActions.isEmpty()) {
             return true
         } else {
-            return beacon.seenAt - sameBeaconActions.last().seenAt >= 60000
+            return beacon.seenAt - sameBeaconActions.last().seenAt >= beaconUniquenessThrottle
         }
     }
 
