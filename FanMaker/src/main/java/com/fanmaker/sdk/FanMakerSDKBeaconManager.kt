@@ -53,7 +53,7 @@ class FanMakerSDKBeaconManager(private val application: Application) {
                 beaconUniquenessThrottle =
                     beacons.getString("beaconUniquenessThrottle").toInt() * 1000
                 Log.d(TAG, "beaconUniquenessThrottle set to $beaconUniquenessThrottle milliseconds")
-            } catch (err: JSONException) {
+            } catch (err: Exception) {
                 Log.e(TAG, err.toString())
             }
         }, { errorCode, errorMessage ->
