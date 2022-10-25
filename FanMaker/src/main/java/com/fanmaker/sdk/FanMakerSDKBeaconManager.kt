@@ -10,8 +10,6 @@ import org.altbeacon.beacon.BeaconParser
 import org.altbeacon.beacon.MonitorNotifier
 import org.json.JSONArray
 import org.json.JSONObject
-import org.json.JSONStringer
-import org.json.JSONTokener
 
 class FanMakerSDKBeaconManager(private val application: Application) {
     private val beaconManager = BeaconManager.getInstanceForApplication(application)
@@ -23,9 +21,11 @@ class FanMakerSDKBeaconManager(private val application: Application) {
             BeaconParser().setBeaconLayout(BEACON_LAYOUT)
         )
 
-        Log.d(TAG, "Cleaning queues")
-        updateQueue(RANGE_ACTIONS_HISTORY, emptyArray())
-        updateQueue(RANGE_ACTIONS_SEND_LIST, emptyArray())
+        beaconManager.monitoredRegions.forEach { beaconManager.stopMonitoring(it) }
+
+        beaconManager.setEnableScheduledScanJobs(false);
+        beaconManager.backgroundBetweenScanPeriod = 20000L;
+        beaconManager.backgroundScanPeriod = 20000L;
     }
 
     fun fetchBeaconRegions() {
