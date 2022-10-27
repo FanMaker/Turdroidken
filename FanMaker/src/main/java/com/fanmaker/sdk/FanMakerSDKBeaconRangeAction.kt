@@ -54,7 +54,6 @@ class FanMakerSDKBeaconRangeAction(
             "distance" to distance,
             "proximity" to proximity,
             "accuracy" to -1,
-            "seenAt" to seenAt,
             "seen_at" to parsedSeenAt()
         )
     }
@@ -64,7 +63,16 @@ class FanMakerSDKBeaconRangeAction(
     }
 
     fun toJSON(): String {
-        return JSONObject(toParams()).toString()
+        return JSONObject(mapOf(
+            "uuid" to uuid,
+            "major" to major,
+            "minor" to minor,
+            "rssi" to rssi,
+            "distance" to distance,
+            "proximity" to proximity,
+            "accuracy" to -1,
+            "seenAt" to seenAt
+        )).toString()
     }
 
     override fun toString(): String {

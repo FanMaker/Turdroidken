@@ -38,6 +38,7 @@ class FanMakerSDKBeaconManager(private val application: Application) {
         } else {
             fetchBeaconRegions { regions ->
                 Log.d(TAG, "Beacon Regions received: ${regions.joinToString()}")
+                startScanning(regions)
             }
         }
     }
@@ -113,7 +114,7 @@ class FanMakerSDKBeaconManager(private val application: Application) {
             }
 
             if (newActions.isNotEmpty()) {
-                updateQueue(RANGE_ACTIONS_HISTORY, queue)
+                updateQueue(RANGE_ACTIONS_HISTORY, queue.takeLast(HISTORY_LIMIT).reversed().toTypedArray())
                 Log.d(TAG, "Range Actions to post: $newActions")
                 postBeaconRangeActions(newActions)
             }
@@ -157,7 +158,7 @@ class FanMakerSDKBeaconManager(private val application: Application) {
         }, { errorCode, errorMessage ->
             Log.e(TAG, "$errorCode: $errorMessage")
             updateQueue(RANGE_ACTIONS_SEND_LIST, queue)
-            Log.d(TAG, "${queue.size} beacon range actions added to the send list")
+            Log.d(TAG, "${queue.size} beacon range actions in the send list")
         })
     }
 
@@ -181,7 +182,7 @@ class FanMakerSDKBeaconManager(private val application: Application) {
     }
 
     private fun updateQueue(key: String, value: Array<FanMakerSDKBeaconRangeAction>) {
-        val json = value.takeLast(HISTORY_LIMIT).reversed().map { it.toJSON() }
+        val json = value.map { it.toJSON() }
         val editor = readSettings().edit()
         editor.putString(key, "[${json.joinToString()}]")
         editor.commit()

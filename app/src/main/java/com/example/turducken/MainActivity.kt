@@ -28,8 +28,6 @@ class MainActivity : AppCompatActivity() {
         checkPermissions()
 
         beaconManager = FanMakerSDKBeaconManager(application)
-        beaconManager.eventHandler = BeaconEventHandler()
-
         beaconManager.fetchBeaconRegions()
     }
 

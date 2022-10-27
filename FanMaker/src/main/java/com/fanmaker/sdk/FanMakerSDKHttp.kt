@@ -6,6 +6,7 @@ import com.android.volley.toolbox.Volley
 import com.android.volley.Request.Method
 
 import org.json.JSONObject
+import java.net.ConnectException
 
 class FanMakerSDKHttp(val context: Context) {
     val queue = Volley.newRequestQueue(context)
@@ -50,10 +51,14 @@ class FanMakerSDKHttp(val context: Context) {
                 }
             },
             { error ->
-                try {
-                    onError(error.networkResponse.statusCode, error.message.toString())
-                } catch (err: java.lang.Exception) {
-                    Log.e(TAG, err.localizedMessage)
+                if (error.networkResponse == null) {
+                    onError(0, "Server not found or no Internet connection available")
+                } else {
+                    try {
+                        onError(error.networkResponse.statusCode, error.message.toString())
+                    } catch (err: java.lang.Exception) {
+                        Log.e(TAG, err.localizedMessage)
+                    }
                 }
             }
         ) {

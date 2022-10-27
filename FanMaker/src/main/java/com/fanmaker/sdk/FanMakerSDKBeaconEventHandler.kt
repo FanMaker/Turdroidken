@@ -8,6 +8,7 @@ interface FanMakerSDKBeaconEventHandler {
         regions: Array<FanMakerSDKBeaconRegion>
     ) {
         Log.d(TAG, "Beacon Regions received: ${regions.joinToString()}")
+        manager.startScanning(regions)
     }
 
     fun onBeaconRegionEnter(manager: FanMakerSDKBeaconManager, region: FanMakerSDKBeaconRegion) {
