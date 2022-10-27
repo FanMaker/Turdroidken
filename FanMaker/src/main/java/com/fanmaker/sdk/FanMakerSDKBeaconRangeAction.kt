@@ -65,7 +65,7 @@ class FanMakerSDKBeaconRangeAction(
         if (zone.observesDaylightTime()) {
             offset += 1000 * 60 * 60 // 1000 milliseconds * 60 seconds * 60 minutes = 1 hour
         }
-        return Timestamp(seenAt - offset).toString()
+        return Timestamp(seenAt - offset).toString() + "Z"
     }
 
     fun toJSON(): String {

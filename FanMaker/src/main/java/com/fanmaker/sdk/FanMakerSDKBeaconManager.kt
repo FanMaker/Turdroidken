@@ -10,6 +10,7 @@ import org.altbeacon.beacon.BeaconParser
 import org.altbeacon.beacon.MonitorNotifier
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.*
 
 class FanMakerSDKBeaconManager(private val application: Application) {
     private val beaconManager = BeaconManager.getInstanceForApplication(application)
@@ -157,7 +158,16 @@ class FanMakerSDKBeaconManager(private val application: Application) {
             Log.e(TAG, "$errorCode: $errorMessage")
             updateQueue(RANGE_ACTIONS_SEND_LIST, queue)
             Log.d(TAG, "${queue.size} beacon range actions in the send list")
+            Timer().schedule(object: TimerTask() {
+                override fun run() {
+                    sendList()
+                }
+            }, 1000 * 60)
         })
+    }
+
+    private fun sendList() {
+        postBeaconRangeActions(emptyArray())
     }
 
     private fun rangeActionsHistory(): Array<FanMakerSDKBeaconRangeAction> {
