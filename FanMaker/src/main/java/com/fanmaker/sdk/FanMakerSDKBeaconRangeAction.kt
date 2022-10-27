@@ -3,6 +3,7 @@ package com.fanmaker.sdk
 import org.altbeacon.beacon.Beacon
 import org.json.JSONObject
 import java.sql.Timestamp
+import java.util.TimeZone
 
 class FanMakerSDKBeaconRangeAction(
     val uuid: String,
@@ -59,7 +60,12 @@ class FanMakerSDKBeaconRangeAction(
     }
 
     fun parsedSeenAt(): String {
-        return Timestamp(seenAt).toString()
+        val zone = TimeZone.getDefault()
+        var offset = zone.rawOffset
+        if (zone.observesDaylightTime()) {
+            offset += 1000 * 60 * 60 // 1000 milliseconds * 60 seconds * 60 minutes = 1 hour
+        }
+        return Timestamp(seenAt - offset).toString()
     }
 
     fun toJSON(): String {

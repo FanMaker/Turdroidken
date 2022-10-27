@@ -40,6 +40,7 @@ open class FanMakerSDKHttpRequest(
     }
 
     companion object {
-        const val URL = "https://api.fanmaker.com/api/v2"
+        // const val URL = "https://api.fanmaker.com/api/v2"
+        const val URL = "http://192.168.1.205/api/v2"
     }
 }

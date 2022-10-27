@@ -9,7 +9,6 @@ import org.altbeacon.beacon.BeaconManager
 import org.altbeacon.beacon.BeaconParser
 import org.altbeacon.beacon.MonitorNotifier
 import org.json.JSONArray
-import org.json.JSONException
 import org.json.JSONObject
 
 class FanMakerSDKBeaconManager(private val application: Application) {
