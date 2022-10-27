@@ -79,11 +79,10 @@ class FanMakerSDKBeaconManager(private val application: Application) {
             val regionViewModel = beaconManager.getRegionViewModel(region.region)
             regionViewModel.regionState.observeForever { state ->
                 val action = if (state == MonitorNotifier.OUTSIDE) "exit" else "enter"
-                postBeaconRegionAction(region, action) {
-                    when (action) {
-                        "enter" -> onBeaconRegionEnter(region)
-                        "exit" -> onBeaconRegionExit(region)
-                    }
+                postBeaconRegionAction(region, action) { }
+                when (action) {
+                    "enter" -> onBeaconRegionEnter(region)
+                    "exit" -> onBeaconRegionExit(region)
                 }
             }
         }
