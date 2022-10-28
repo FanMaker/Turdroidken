@@ -182,3 +182,52 @@ FanMakerSDK.disableLocationTracking()
 // To manually enable location tracking back
 FanMakerSDK.enableLocationTracking()
 ```
+
+### Beacons Tracking
+
+FanMaker SDK allows beacon tracking by using the `FanMakerSDKBeaconManager` class. This class can be instantiated and used inside any `Activity` class. The simplest way to use it is the following:
+
+```
+val beaconManager = FanMakerSDKBeaconManager(application)
+beaconManager.fetchBeaconRegions()
+```
+
+You can, however, attach an instance of a custom class complying with the `FanMakerSDKBeaconEventHandler` interface in order to gain more control about the stages of the process, both for debugging purposes or a most customized workflow:
+
+```
+// The custom event handler needs to be attached before calling fetchBeaconRegions()
+beaconManager.eventHandler = MyCustomBeaconEventHandler()
+beaconManager.fetchBeaconRegions()
+```
+
+where `MyCustomBeaconEventHandler` is defined as:
+
+```
+class BeaconEventHandler : FanMakerSDKBeaconEventHandler {
+    // This function gets called when the list of beacon regions is successfully retrieved from the server.
+    // Maybe you want to customize which regions get scanned or add debug messages to better monitor the workflow.
+    override fun onBeaconRegionsReceived(manager: FanMakerSDKBeaconManager, regions: Array<FanMakerSDKBeaconRegion>) {
+        manager.startScanning(regions)
+    }
+    
+    // This function gets called whenever user enters into a region (gets a beacon ping for the first time)
+    override fun onBeaconRegionEnter(manager: FanMakerSDKBeaconManager, region: FanMakerSDKBeaconRegion) {
+        . . .
+    }
+
+    // This function gets called whenever user exits a region (stops getting a given beacon pings for a while)
+    override fun onBeaconRegionExit(manager: FanMakerSDKBeaconManager, region: FanMakerSDKBeaconRegion) {
+        . . .
+    }
+}
+```
+
+### Beacons Tracking Permissions
+
+In order for Beacons Tracking to work, you need to add the following permissions to your Manifest, as well as asking users for them in running time:
+
+```
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+```

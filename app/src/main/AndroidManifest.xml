@@ -14,7 +14,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Turducken"
         android:usesCleartextTraffic="true">
-        <activity android:name=".FanMakerActivity"></activity>
+        <activity android:name=".FanMakerActivity" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
