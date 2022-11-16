@@ -230,4 +230,5 @@ In order for Beacons Tracking to work, you need to add the following permissions
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 ```
