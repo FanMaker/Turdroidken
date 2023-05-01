@@ -46,7 +46,7 @@ githubProperties.load(new FileInputStream(rootProject.file("github.properties"))
 ```markdown
 dependencies {
     implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:1.2'
+    implementation 'com.fanmaker.sdk:fanmaker:1.5.1'
 	...
 }
 ```
