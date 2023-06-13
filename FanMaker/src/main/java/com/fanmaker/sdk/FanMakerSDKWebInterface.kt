@@ -25,9 +25,9 @@ class FanMakerSDKWebInterface(
 
     @JavascriptInterface
     fun sdkOpenUrl(url: String) {
-        Log.w("FANMAKER", "URL METHOD HIT!")
-//        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
-//        mContext.startActivity(intent)
+        Log.w("FANMAKER", "Opening External Url: " + url)
+        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+        mContext.startActivity(intent)
     }
 
     @JavascriptInterface
@@ -41,7 +41,6 @@ class FanMakerSDKWebInterface(
 
     @JavascriptInterface
     fun setIdentifiers(json: String) {
-        Log.w("FANMAKER TEST", "setIdentifiers")
         Log.w("FANMAKER", json)
 
         val data = JSONObject(json)
