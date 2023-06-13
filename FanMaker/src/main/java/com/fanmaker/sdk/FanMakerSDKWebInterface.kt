@@ -13,12 +13,22 @@ import android.widget.EditText
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
 
+import android.content.Intent
+import android.net.Uri
+
 class FanMakerSDKWebInterface(
     private val mContext: Context,
     private val onRequestLocationAuthorization: (authorized: Boolean) -> Unit,
     private val onUpdateLocation: (location: Location) -> Unit
 ) {
     private var locationManager: LocationManager? = null
+
+    @JavascriptInterface
+    fun sdkOpenUrl(url: String) {
+        Log.w("FANMAKER", "URL METHOD HIT!")
+//        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+//        mContext.startActivity(intent)
+    }
 
     @JavascriptInterface
     fun storeSessionToken(token: String) {
@@ -31,7 +41,9 @@ class FanMakerSDKWebInterface(
 
     @JavascriptInterface
     fun setIdentifiers(json: String) {
+        Log.w("FANMAKER TEST", "setIdentifiers")
         Log.w("FANMAKER", json)
+
         val data = JSONObject(json)
         FanMakerSDK.userID = data.getString("user_id")
         FanMakerSDK.memberID = data.getString("member_id")
