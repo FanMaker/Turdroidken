@@ -151,12 +151,34 @@ class MyActivity : AppCompatActivity() {
         FanMakerSDK.ticketmasterID = <ticketmasterID>
         FanMakerSDK.yinzid = <yinzid>
         FanMakerSDK.pushNotificationToken = <pushToken>
-    
+
         val intent = Intent(this, FanMakerSDKWebView::class.java)
         startActivity(intent)
     }
 }
 ```
+
+FanMaker additionally allows you to pass arbitrary identifiers as part of a HashMap. The HashMap already exists with the key `FanMaker.arbitraryIdentifiers`. Like in the examples above you can pass an arbitrary identifier with a unique key like so:
+```
+import com.fanmaker.sdk.FanMakerSDKWebView
+
+class MyActivity : AppCompatActivity() {
+    . . .
+
+    fun openFanMakerSDKWebView(view: View) {
+        # below is a static member id example like above
+        FanMakerSDK.memberID = <memberID>
+
+        # This would pass an arbitrary identifier of "FanMaker_NFL_OIDC_Example" with the key "nfl_oidc"
+        FanMakerSDK.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
+
+        val intent = Intent(this, FanMakerSDKWebView::class.java)
+        startActivity(intent)
+    }
+}
+
+```
+Note: you may only have 1 identifier per key. If you require more, please contact FanMaker.
 
 These identifiers must be set **before** displaying `FanMakerSDKWebView`.
 
@@ -169,6 +191,7 @@ FanMakerSDK.studentID
 FanMakerSDK.ticketmasterID
 FanMakerSDK.yinzid
 FanMakerSDK.pushNotificationToken
+FanMakerSDK.arbitraryIdentifiers
 ```
 
 ### Location Tracking

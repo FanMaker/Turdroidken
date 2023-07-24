@@ -1,4 +1,5 @@
 package com.fanmaker.sdk
+import java.util.HashMap
 
 class FanMakerSDK {
     companion object {
@@ -9,6 +10,9 @@ class FanMakerSDK {
         var ticketmasterID: String = ""
         var yinzid: String = ""
         var pushNotificationToken: String = ""
+        var arbitraryIdentifiers: HashMap<String, String> = HashMap<String, String>()
+
+
         private var locationEnabled: Boolean = false
 
         fun initialize(apiKey: String) {

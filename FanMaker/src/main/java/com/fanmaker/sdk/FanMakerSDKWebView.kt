@@ -31,7 +31,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
-
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class FanMakerSDKWebView : AppCompatActivity() {
     private val permission = arrayOf(
@@ -184,7 +186,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val headers: HashMap<String, String> = HashMap<String, String>()
-        headers.put("X-FanMaker-SDK-Version", "1.6.0")
+        headers.put("X-FanMaker-SDK-Version", "1.6.1")
         headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
 
         if (FanMakerSDK.memberID != "") headers.put("X-Member-ID", FanMakerSDK.memberID)
@@ -192,6 +194,9 @@ class FanMakerSDKWebView : AppCompatActivity() {
         if (FanMakerSDK.ticketmasterID != "") headers.put("X-Ticketmaster-ID", FanMakerSDK.ticketmasterID)
         if (FanMakerSDK.yinzid != "") headers.put("X-Yinzid", FanMakerSDK.yinzid)
         if (FanMakerSDK.pushNotificationToken != "") headers.put("X-PushNotification-Token", FanMakerSDK.pushNotificationToken)
+        if (FanMakerSDK.arbitraryIdentifiers.isNotEmpty()) {
+            headers["X-Fanmaker-Identifiers"] = Json.encodeToString(FanMakerSDK.arbitraryIdentifiers)
+        }
 
         val queue = Volley.newRequestQueue(this)
         val url = "https://api.fanmaker.com/api/v2/site_details/info"

@@ -55,6 +55,7 @@ class MainActivity : AppCompatActivity() {
 
     fun openFanMakerSDKWebViewFragment(view: View) {
         setupIdentifiers()
+
         val intent = Intent(this, FanMakerActivity::class.java)
         startActivity(intent)
     }

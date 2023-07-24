@@ -44,6 +44,9 @@ import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 class FanMakerSDKWebViewFragment : Fragment() {
     private var _viewBinding: FanmakerSdkWebviewFragmentBinding? = null
@@ -200,7 +203,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val headers: HashMap<String, String> = HashMap<String, String>()
-        headers.put("X-FanMaker-SDK-Version", "1.6.0")
+        headers.put("X-FanMaker-SDK-Version", "1.6.1")
         headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
 
         if (FanMakerSDK.memberID != "") headers.put("X-Member-ID", FanMakerSDK.memberID)
@@ -208,6 +211,9 @@ class FanMakerSDKWebViewFragment : Fragment() {
         if (FanMakerSDK.ticketmasterID != "") headers.put("X-Ticketmaster-ID", FanMakerSDK.ticketmasterID)
         if (FanMakerSDK.yinzid != "") headers.put("X-Yinzid", FanMakerSDK.yinzid)
         if (FanMakerSDK.pushNotificationToken != "") headers.put("X-PushNotification-Token", FanMakerSDK.pushNotificationToken)
+        if (FanMakerSDK.arbitraryIdentifiers.isNotEmpty()) {
+            headers["X-Fanmaker-Identifiers"] = Json.encodeToString(FanMakerSDK.arbitraryIdentifiers)
+        }
 
         val queue = Volley.newRequestQueue(requireActivity())
         val url = "https://api.fanmaker.com/api/v2/site_details/info"

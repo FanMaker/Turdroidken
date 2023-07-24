@@ -39,6 +39,19 @@ class FanMakerSDKWebInterface(
         Log.w("FANMAKER", "SESSION SAVED")
     }
 
+//    This is necessary to convert the arbitrary identifers from a JSON object
+//    to a HashMap which is what we are expecting the value to be.
+    fun jsonObjectToHashMap(jsonObject: JSONObject): HashMap<String, String> {
+        val hashMap = HashMap<String, String>()
+        val keys = jsonObject.keys()
+        while (keys.hasNext()) {
+            val key = keys.next() as String
+            val value = jsonObject.getString(key)
+            hashMap[key] = value
+        }
+        return hashMap
+    }
+
     @JavascriptInterface
     fun setIdentifiers(json: String) {
         Log.w("FANMAKER", json)
@@ -50,6 +63,9 @@ class FanMakerSDKWebInterface(
         FanMakerSDK.ticketmasterID = data.getString("ticketmaster_id")
         FanMakerSDK.yinzid = data.getString("yinzid")
         FanMakerSDK.pushNotificationToken = data.getString("push_token")
+        val arbitraryIdentifiersJson = data.getJSONObject("arbitrary_dentifiers")
+        val arbitraryIdentifiers: HashMap<String, String> = jsonObjectToHashMap(arbitraryIdentifiersJson)
+        FanMakerSDK.arbitraryIdentifiers = arbitraryIdentifiers
     }
 
     @JavascriptInterface
