@@ -46,19 +46,19 @@ githubProperties.load(new FileInputStream(rootProject.file("github.properties"))
 ```markdown
 dependencies {
     implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:1.5.1'
+    implementation 'com.fanmaker.sdk:fanmaker:1.7.0'
 	...
 }
 ```
-- inside dependencies of the build.gradle of app module, make sure that you set the `compleSdkVersion` and `targetSdkVersion` to 31
+- inside dependencies of the build.gradle of app module, make sure that you set the `compleSdkVersion` and `targetSdkVersion` to 33
 ```markdown
   android {
-    compileSdkVersion 31
+    compileSdkVersion 33
     ...
     
     defaultConfig {
       ...
-      targetSdkVersion 31
+      targetSdkVersion 33
       ...
     }
   }
