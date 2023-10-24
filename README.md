@@ -19,6 +19,43 @@ The FanMaker SDK provides Android developers with a way of inserting the FanMake
 - In case of a public repository make sure you  add this file to .gitignore for keep the token private
 	- Add properties **gpr.usr**=*GITHUB_USERID* and **gpr.key**=*PERSONAL_ACCESS_TOKEN*
 	- Replace GITHUB_USERID with personal / organisation Github User ID and PERSONAL_ACCESS_TOKEN with the token generated in **#Step 1**
+ - NOTE: you can locate your `GITHUB_USERID` by navigating in a browser to: https://api.github.com/users/<your github username>. It will look like the following:
+```
+{
+  "login": "<your username>",
+  "id": "<Your GITHUB_USER_ID>", // << THIS IS WHAT YOU NEED TO USE
+  "node_id": "<Node ID>",
+  "avatar_url": "https://avatars.githubusercontent.com/u/<GITHUB_USERID>?v=4",
+  "gravatar_id": "",
+  "url": "https://api.github.com/users/<your username>",
+  "html_url": "https://github.com/<your username>",
+  "followers_url": "https://api.github.com/users/<your username>/followers",
+  "following_url": "https://api.github.com/users/<your username>/following{/other_user}",
+  "gists_url": "https://api.github.com/users/<your username>/gists{/gist_id}",
+  "starred_url": "https://api.github.com/users/<your username>/starred{/owner}{/repo}",
+  "subscriptions_url": "https://api.github.com/users/<your username>/subscriptions",
+  "organizations_url": "https://api.github.com/users/<your username>/orgs",
+  "repos_url": "https://api.github.com/users/<your username>/repos",
+  "events_url": "https://api.github.com/users/<your username>/events{/privacy}",
+  "received_events_url": "https://api.github.com/users/<your username>/received_events",
+  "type": "User",
+  "site_admin": false,
+  "name": "<Your Name>",
+  "company": null,
+  "blog": "",
+  "location": null,
+  "email": null,
+  "hireable": null,
+  "bio": null,
+  "twitter_username": null,
+  "public_repos": 0,
+  "public_gists": 0,
+  "followers": 1,
+  "following": 0,
+  "created_at": "<Created at>",
+  "updated_at": "<Updated at>"
+}
+```
 	
 > Alternatively you can also add the **GPR_USER** and **GPR_API_KEY** values to your environment variables on you local machine or build server to avoid creating a github properties file
 
