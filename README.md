@@ -19,7 +19,7 @@ The FanMaker SDK provides Android developers with a way of inserting the FanMake
 - In case of a public repository make sure you  add this file to .gitignore for keep the token private
 	- Add properties **gpr.usr**=*GITHUB_USERID* and **gpr.key**=*PERSONAL_ACCESS_TOKEN*
 	- Replace GITHUB_USERID with personal / organisation Github User ID and PERSONAL_ACCESS_TOKEN with the token generated in **#Step 1**
- - NOTE: you can locate your `GITHUB_USERID` by navigating in a browser to: https://api.github.com/users/<your github username>. It will look like the following:
+ - NOTE: you can locate your `GITHUB_USERID` by navigating in a browser to: `https://api.github.com/users/<your github username>`. It will look like the following:
 ```
 {
   "login": "<your username>",
