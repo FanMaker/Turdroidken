@@ -65,7 +65,9 @@ The FanMaker SDK provides Android developers with a way of inserting the FanMake
 def githubProperties = new Properties()
 githubProperties.load(new FileInputStream(rootProject.file("github.properties")))  
 ```
+NOTE: Make sure to add the the repository at the top level in `allprojects`
 ```markdown
+allprojects {
     repositories {
         maven {
             name = "GitHubPackages"
@@ -77,6 +79,7 @@ githubProperties.load(new FileInputStream(rootProject.file("github.properties"))
             }
         }
     }
+}
 ```
 
 - inside dependencies of the build.gradle of app module, use the following code
