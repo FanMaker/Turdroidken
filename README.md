@@ -86,7 +86,7 @@ allprojects {
 ```markdown
 dependencies {
     implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:1.7.0'
+    implementation 'com.fanmaker.sdk:fanmaker:1.7.1'
 	...
 }
 ```
