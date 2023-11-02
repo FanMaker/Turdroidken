@@ -86,7 +86,7 @@ allprojects {
 ```markdown
 dependencies {
     implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:1.7.1'
+    implementation 'com.fanmaker.sdk:fanmaker:1.7.2'
 	...
 }
 ```
@@ -112,6 +112,7 @@ dependencies {
 <uses-permission android:name="android.permission.CAMERA" />
 <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
 <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+<uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
 <uses-feature android:name="android.hardware.camera" android:required="false" />
 <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 ```

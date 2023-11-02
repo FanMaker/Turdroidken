@@ -40,6 +40,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         Manifest.permission.CAMERA,
         Manifest.permission.WRITE_EXTERNAL_STORAGE,
         Manifest.permission.READ_EXTERNAL_STORAGE,
+        Manifest.permission.READ_MEDIA_IMAGES,
     )
     private val MEDIA_RESULTCODE = 1
     private val PERMISSION_RESULTCODE = 2
@@ -186,7 +187,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val headers: HashMap<String, String> = HashMap<String, String>()
-        headers.put("X-FanMaker-SDK-Version", "1.7.1")
+        headers.put("X-FanMaker-SDK-Version", "1.7.2")
         headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
 
         if (FanMakerSDK.memberID != "") headers.put("X-Member-ID", FanMakerSDK.memberID)
@@ -242,7 +243,8 @@ class FanMakerSDKWebView : AppCompatActivity() {
     }
 
     fun openPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
-        val hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+        var hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+        if(!hasFilePermissions) { hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED) }
 
         if(hasFilePermissions) {
             val intent = fileChooserParams!!.createIntent()
@@ -259,8 +261,10 @@ class FanMakerSDKWebView : AppCompatActivity() {
     }
 
     private fun startCamera() {
-        val hasCamPermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+        var hasCamPermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
                 && ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
+
+        if(!hasCamPermissions) { hasCamPermissions = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED }
 
         if(hasCamPermissions) {
             val cameraProviderFuture = ProcessCameraProvider.getInstance(applicationContext)

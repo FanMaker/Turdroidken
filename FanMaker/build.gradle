@@ -10,7 +10,7 @@ android {
         minSdkVersion 24
         targetSdkVersion 33
         versionCode 1
-        versionName "1.7.1"
+        versionName "1.7.2"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
@@ -65,7 +65,7 @@ def githubProperties = new Properties()
 githubProperties.load(new FileInputStream(rootProject.file("github.properties")))
 
 def getVersionName = { ->
-    return "1.7.1"
+    return "1.7.2"
 }
 
 def getArtifactId = { ->
