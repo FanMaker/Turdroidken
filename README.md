@@ -247,6 +247,13 @@ FanMakerSDK.disableLocationTracking()
 FanMakerSDK.enableLocationTracking()
 ```
 
+### Location Tracking Permissions
+In order for Location Tracking to work, you need to add the following permissions to your Manifest, as well as asking users for them in running time:
+```
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+```
+
 ### Beacons Tracking
 
 FanMaker SDK allows beacon tracking by using the `FanMakerSDKBeaconManager` class. This class can be instantiated and used inside any `Activity` class. The simplest way to use it is the following:
