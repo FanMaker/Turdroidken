@@ -1,4 +1,4 @@
-# FanMaker SDK for Android App Development 
+# FanMaker SDK for Android App Development
 
 ## About
 
@@ -56,14 +56,14 @@ The FanMaker SDK provides Android developers with a way of inserting the FanMake
   "updated_at": "<Updated at>"
 }
 ```
-	
+
 > Alternatively you can also add the **GPR_USER** and **GPR_API_KEY** values to your environment variables on you local machine or build server to avoid creating a github properties file
 
-### Step 3 : Update build.gradle inside the application module 
+### Step 3 : Update build.gradle inside the application module
 - Add the following code to **build.gradle** inside the application module that will be using the library published on GitHub Packages Repository
 ```markdown
 def githubProperties = new Properties()
-githubProperties.load(new FileInputStream(rootProject.file("github.properties")))  
+githubProperties.load(new FileInputStream(rootProject.file("github.properties")))
 ```
 NOTE: Make sure to add the the repository at the top level in `allprojects`
 ```markdown
@@ -95,7 +95,7 @@ dependencies {
   android {
     compileSdkVersion 33
     ...
-    
+
     defaultConfig {
       ...
       targetSdkVersion 33
@@ -138,10 +138,10 @@ class MainActivity : AppCompatActivity() {
 
         // FanMaker SDK Initialization
         FanMakerSDK.initialize("<SDK_KEY>")
-        
+
         . . .
     }
-    
+
     . . .
 }
 ```
@@ -235,6 +235,42 @@ FanMakerSDK.pushNotificationToken
 FanMakerSDK.arbitraryIdentifiers
 ```
 
+### Privacy Permissions (Optional)
+It is possible to pass optional privacy permission details to the FanMaker SDK where we will record the settings for the user in our system. To pass this information to FanMaker, please use the following protocols. Note: it is the same way you would pass Custom Identifiers above, but with specific keys.
+
+The specific privacy opt in/out keys are as follows:
+1. `privacy_advertising`
+2. `privacy_analytics`
+3. `privacy_functional`
+4. `privacy_all`
+
+*NOTE: all privacy permissions are optional. Do not pass privacy settings that you do not have user data for*
+
+
+```
+class MyActivity : AppCompatActivity() {
+    ...
+
+    fun openFanMakerSDKWebView(view: View) {
+        ...
+        # This would pass an arbitrary identifier of "FanMaker_NFL_OIDC_Example" with the key "nfl_oidc"
+        FanMakerSDK.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
+
+        # Privacy Settings
+        FanMakerSDK.arbitraryIdentifiers["privacy_advertising"] = false
+        FanMakerSDK.arbitraryIdentifiers["privacy_analytics"] = true
+        FanMakerSDK.arbitraryIdentifiers["privacy_functional"] = true
+        FanMakerSDK.arbitraryIdentifiers["privacy_all"] = false
+
+        ...
+        val intent = Intent(this, FanMakerSDKWebView::class.java)
+        startActivity(intent)
+    }
+}
+```
+
+*`Note`: a value of `true` indicates that the user has opted in to a privacy permission, `false` indicates that a user has opted out.*
+
 ### Location Tracking
 
 FanMaker UI uses location tracking services when they are available. However, location tracking can be enabled/disabled by calling the following static functions:
@@ -280,7 +316,7 @@ class BeaconEventHandler : FanMakerSDKBeaconEventHandler {
     override fun onBeaconRegionsReceived(manager: FanMakerSDKBeaconManager, regions: Array<FanMakerSDKBeaconRegion>) {
         manager.startScanning(regions)
     }
-    
+
     // This function gets called whenever user enters into a region (gets a beacon ping for the first time)
     override fun onBeaconRegionEnter(manager: FanMakerSDKBeaconManager, region: FanMakerSDKBeaconRegion) {
         . . .
