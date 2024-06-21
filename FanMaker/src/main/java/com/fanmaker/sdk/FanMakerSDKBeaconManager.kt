@@ -2,9 +2,9 @@ package com.fanmaker.sdk
 
 import android.app.Application
 import android.content.Context
-import android.content.SharedPreferences
 import android.util.Log
 
+import android.content.SharedPreferences
 import org.altbeacon.beacon.BeaconManager
 import org.altbeacon.beacon.BeaconParser
 import org.altbeacon.beacon.MonitorNotifier
@@ -12,8 +12,13 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.util.*
 
-class FanMakerSDKBeaconManager(private val application: Application) {
+class FanMakerSDKBeaconManager(
+    private val fanMakerSDK: FanMakerSDK,
+    private val application: Application
+){
     private val beaconManager = BeaconManager.getInstanceForApplication(application)
+    private var fanMakerSharedPreferences = FanMakerSharedPreferences(application.applicationContext, fanMakerSDK.apiKey)
+
     var eventHandler: FanMakerSDKBeaconEventHandler? = null
     var beaconUniquenessThrottle = 60000
 
@@ -44,15 +49,14 @@ class FanMakerSDKBeaconManager(private val application: Application) {
     }
 
     fun fetchBeaconRegions(onSuccess: (Array<FanMakerSDKBeaconRegion>) -> Unit) {
-        val http = FanMakerSDKHttp(application.applicationContext)
+        val http = FanMakerSDKHttp(fanMakerSDK, application.applicationContext)
 
-        http.get("site_details/info", { response ->
+        http.get("site_details/sdk", { response ->
             try {
                 val data = response.getJSONObject("data")
-                val site_features = data.getJSONObject("site_features")
-                val beacons = site_features.getJSONObject("beacons")
+                val beacons = data.getJSONObject("beacons")
                 beaconUniquenessThrottle =
-                    beacons.getString("beaconUniquenessThrottle").toInt() * 1000
+                    beacons.getString("uniqueness_throttle").toInt() * 1000
                 Log.d(TAG, "beaconUniquenessThrottle set to $beaconUniquenessThrottle milliseconds")
             } catch (err: Exception) {
                 Log.e(TAG, err.toString())
@@ -139,7 +143,8 @@ class FanMakerSDKBeaconManager(private val application: Application) {
             "beacon_region_id" to region.id.toString(),
             "action_type" to action
         )
-        val http = FanMakerSDKHttp(application.applicationContext)
+        val userToken = fanMakerSharedPreferences.getString("token", "")
+        val http = FanMakerSDKHttp(fanMakerSDK, application.applicationContext, userToken)
         http.post("beacon_region_actions", body, onSuccess) { errorCode, errorMessage ->
             Log.e(TAG, "$errorCode: $errorMessage")
         }
@@ -150,7 +155,10 @@ class FanMakerSDKBeaconManager(private val application: Application) {
         if (queue.isEmpty()) return
 
         val body = mapOf("beacons" to queue.map { it.toParams() })
-        val http = FanMakerSDKHttp(application.applicationContext)
+        val userToken = fanMakerSharedPreferences.getString("token", "")
+
+        val http = FanMakerSDKHttp(fanMakerSDK, application.applicationContext, userToken)
+
         http.post("beacon_range_actions", body, {
             updateQueue(RANGE_ACTIONS_SEND_LIST, emptyArray())
             Log.d(TAG, "${queue.size} beacon range actions successfully posted")
@@ -191,15 +199,19 @@ class FanMakerSDKBeaconManager(private val application: Application) {
 
     private fun updateQueue(key: String, value: Array<FanMakerSDKBeaconRangeAction>) {
         val json = value.map { it.toJSON() }
-        val editor = readSettings().edit()
-        editor.putString(key, "[${json.joinToString()}]")
-        editor.commit()
+        // val editor = readSettings().edit()
+        // editor.putString(key, "[${json.joinToString()}]")
+        // editor.commit()
+
+        fanMakerSharedPreferences.putString(key, "[${json.joinToString()}]")
+        fanMakerSharedPreferences.commit()
     }
 
     private fun readSettings(): SharedPreferences {
-        return application
-            .applicationContext
-            .getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
+        // return application
+        //     .applicationContext
+        //     .getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
+        return fanMakerSharedPreferences.getSharedPreferences()
     }
 
     private fun shouldAppend(

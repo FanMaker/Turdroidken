@@ -17,47 +17,58 @@ import com.fanmaker.sdk.FanMakerSDKWebView
 import org.altbeacon.beacon.BeaconManager
 
 class MainActivity : AppCompatActivity() {
-    lateinit var beaconManager: FanMakerSDKBeaconManager
+    private val fanMakerSDK1 = FanMakerSDK()
+    private val fanMakerSDK2 = FanMakerSDK()
+    lateinit var beaconManager1: FanMakerSDKBeaconManager
+    lateinit var beaconManager2: FanMakerSDKBeaconManager
+
     var neverAskAgainPermissions = ArrayList<String>()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        FanMakerSDK.initialize("")
+        fanMakerSDK1.initialize("")
+        fanMakerSDK2.initialize("")
         checkPermissions()
 
-        beaconManager = FanMakerSDKBeaconManager(application)
-        beaconManager.fetchBeaconRegions()
+        beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1, application)
+        beaconManager1.fetchBeaconRegions()
+
+        beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2, application)
+        beaconManager2.fetchBeaconRegions()
     }
 
     fun setupIdentifiers() {
         val memberID: String = findViewById<EditText>(R.id.memberID).text.toString()
-        if (memberID != "") FanMakerSDK.memberID = memberID
+        if (memberID != "") fanMakerSDK1.memberID = memberID
 
         val studentID: String = findViewById<EditText>(R.id.studentID).text.toString()
-        if (studentID != "") FanMakerSDK.studentID = studentID
+        if (studentID != "") fanMakerSDK1.studentID = studentID
 
         val ticketmasterID: String = findViewById<EditText>(R.id.ticketmasterID).text.toString()
-        if (ticketmasterID != "") FanMakerSDK.ticketmasterID = ticketmasterID
+        if (ticketmasterID != "") fanMakerSDK1.ticketmasterID = ticketmasterID
 
         val yinzID: String = findViewById<EditText>(R.id.yinzID).text.toString()
-        if (yinzID != "") FanMakerSDK.yinzid = yinzID
+        if (yinzID != "") fanMakerSDK1.yinzid = yinzID
 
         val pushToken: String = findViewById<EditText>(R.id.pushToken).text.toString()
-        if (pushToken != "") FanMakerSDK.pushNotificationToken = pushToken
+        if (pushToken != "") fanMakerSDK1.pushNotificationToken = pushToken
     }
 
     fun openFanMakerSDKWebView(view: View) {
-        val intent = Intent(this, FanMakerSDKWebView::class.java)
-        startActivity(intent)
+        val intent1 = Intent(this, FanMakerSDKWebView::class.java).apply {
+            putExtra("fanMakerSDK", fanMakerSDK1)
+        }
+        startActivity(intent1)
     }
 
     fun openFanMakerSDKWebViewFragment(view: View) {
         setupIdentifiers()
 
-        val intent = Intent(this, FanMakerActivity::class.java)
-        startActivity(intent)
+        val intent2 = Intent(this, FanMakerActivity::class.java)
+        intent2.putExtra("fanMakerSDK", fanMakerSDK2)
+        startActivity(intent2)
     }
 
     fun checkPermissions() {

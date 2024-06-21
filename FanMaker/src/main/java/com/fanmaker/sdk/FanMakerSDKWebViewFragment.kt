@@ -49,9 +49,11 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
 class FanMakerSDKWebViewFragment : Fragment() {
+    private lateinit var fanMakerSDK: FanMakerSDK
+    private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
+
     private var _viewBinding: FanmakerSdkWebviewFragmentBinding? = null
     private val viewBinding get() = _viewBinding!!
-
 
     private val permission = arrayOf(
         Manifest.permission.CAMERA,
@@ -104,6 +106,11 @@ class FanMakerSDKWebViewFragment : Fragment() {
         val webView = viewBinding.root.findViewById<WebView>(R.id.fanmaker_sdk_webview)
         webView.webViewClient = WebViewClient()
         webView.webChromeClient = WebChromeClient()
+
+        val intent = Intent(Intent.ACTION_GET_CONTENT)
+        val fanMakerSDK = activity?.intent?.getParcelableExtra<FanMakerSDK>("fanMakerSDK")
+
+        fanMakerSharedPreferences = FanMakerSharedPreferences(getContext()!!, fanMakerSDK!!.apiKey)
 
         webView.settings.javaScriptEnabled = true
         webView.settings.javaScriptCanOpenWindowsAutomatically = true
@@ -180,6 +187,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         }
 
         val jsInterface = FanMakerSDKWebInterface(requireActivity(),
+            fanMakerSDK,
             { authorized ->
                 var jsString: String = "FanMakerReceiveLocationAuthorization("
                 if (authorized) jsString = "${jsString}true)"
@@ -204,21 +212,22 @@ class FanMakerSDKWebViewFragment : Fragment() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val headers: HashMap<String, String> = HashMap<String, String>()
-        headers.put("X-FanMaker-SDK-Version", "1.7.2")
+        headers.put("X-FanMaker-SDK-Version", fanMakerSDK!!.version)
         headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
 
-        if (FanMakerSDK.memberID != "") headers.put("X-Member-ID", FanMakerSDK.memberID)
-        if (FanMakerSDK.studentID != "") headers.put("X-Student-ID", FanMakerSDK.studentID)
-        if (FanMakerSDK.ticketmasterID != "") headers.put("X-Ticketmaster-ID", FanMakerSDK.ticketmasterID)
-        if (FanMakerSDK.yinzid != "") headers.put("X-Yinzid", FanMakerSDK.yinzid)
-        if (FanMakerSDK.pushNotificationToken != "") headers.put("X-PushNotification-Token", FanMakerSDK.pushNotificationToken)
-        if (FanMakerSDK.arbitraryIdentifiers.isNotEmpty()) {
-            headers["X-Fanmaker-Identifiers"] = Json.encodeToString(FanMakerSDK.arbitraryIdentifiers)
+        if (fanMakerSDK.memberID != "") headers.put("X-Member-ID", fanMakerSDK.memberID)
+        if (fanMakerSDK.studentID != "") headers.put("X-Student-ID", fanMakerSDK.studentID)
+        if (fanMakerSDK.ticketmasterID != "") headers.put("X-Ticketmaster-ID", fanMakerSDK.ticketmasterID)
+        if (fanMakerSDK.yinzid != "") headers.put("X-Yinzid", fanMakerSDK.yinzid)
+        if (fanMakerSDK.pushNotificationToken != "") headers.put("X-PushNotification-Token", fanMakerSDK.pushNotificationToken)
+        if (fanMakerSDK.arbitraryIdentifiers.isNotEmpty()) {
+            headers["X-Fanmaker-Identifiers"] = Json.encodeToString(fanMakerSDK.arbitraryIdentifiers)
         }
 
         val queue = Volley.newRequestQueue(requireActivity())
-        val url = "https://api.fanmaker.com/api/v2/site_details/info"
-        val settings = getActivity()?.getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
+        val url = "https://api3.fanmaker.com/api/v3/site_details/sdk"
+
+        val settings = fanMakerSharedPreferences.getSharedPreferences()
         val token = settings?.getString("token", "")
         token?.let {
             headers.put("X-FanMaker-SessionToken", it)
@@ -230,7 +239,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
                 val status = response.getInt("status")
                 if (status == 200) {
                     val data = response.getJSONObject("data")
-                    val sdk_url = data.getString("sdk_url")
+                    val sdk_url = data.getString("url")
                     Log.w("FANMAKER", sdk_url)
                     webView.loadUrl(sdk_url, headers)
                 } else {
@@ -243,7 +252,12 @@ class FanMakerSDKWebViewFragment : Fragment() {
         ) {
             override fun getHeaders(): MutableMap<String, String> {
                 val headers = HashMap<String, String>()
-                headers["X-FanMaker-Token"] = FanMakerSDK.apiKey
+                if (token != null && token != "") {
+                    headers["X-FanMaker-Token"] = token
+                } else {
+                    headers["X-FanMaker-Token"] = fanMakerSDK!!.apiKey
+                }
+                headers["X-FanMaker-Mode"] = "sdk"
                 return headers
             }
         }
@@ -255,7 +269,6 @@ class FanMakerSDKWebViewFragment : Fragment() {
     fun genericAlert(message: String) {
         val dialogBuilder = AlertDialog.Builder(context)
 
-//        dialogBuilder.setTitle("Unable to complete your request")
         dialogBuilder.setMessage(message)
         dialogBuilder.setCancelable(false)
         dialogBuilder.setNegativeButton("Close", DialogInterface.OnClickListener { dialog, id -> dialog.cancel() })
