@@ -28,8 +28,15 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        fanMakerSDK1.initialize("")
-        fanMakerSDK2.initialize("")
+        fanMakerSDK1.initialize(applicationContext, "")
+        fanMakerSDK2.initialize(applicationContext, "")
+        lifecycle.addObserver(fanMakerSDK1)
+        lifecycle.addObserver(fanMakerSDK2)
+
+        fanMakerSDK1.locationEnabled = true
+        fanMakerSDK2.locationEnabled = true
+
+
         checkPermissions()
 
         beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1, application)
