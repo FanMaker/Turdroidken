@@ -79,6 +79,7 @@ class FanMakerSDKBeaconManager(
 
     fun startScanning(regions: Array<FanMakerSDKBeaconRegion>) {
         regions.map { region ->
+            Log.d(TAG, "Starting monitoring for ${region.region}")
             beaconManager.startMonitoring(region.region)
 
             val regionViewModel = beaconManager.getRegionViewModel(region.region)

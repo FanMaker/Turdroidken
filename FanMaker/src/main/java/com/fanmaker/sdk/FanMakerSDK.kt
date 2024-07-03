@@ -26,6 +26,13 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
 
+// Deep Linking
+import android.net.Uri
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.builtins.MapSerializer
+
 class FanMakerSDK(
     var version: String = "2.0.0",
     var apiKey: String = "",
@@ -37,54 +44,24 @@ class FanMakerSDK(
     var pushNotificationToken: String = "",
     var arbitraryIdentifiers: HashMap<String, String> = HashMap<String, String>(),
     var locationEnabled: Boolean = false,
-    var firstLaunch: Boolean = true
-) : Parcelable, LifecycleObserver {
+    var firstLaunch: Boolean = true,
+    var baseUrl: String = "",
+    var deepLinkUrl: String = "",
+) : LifecycleObserver {
     lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
     lateinit var context: android.content.Context
     private lateinit var fusedLocationClient: FusedLocationProviderClient
 
     // ------------------------------------------------------------------------------------------------------
-    // THESE METHODS ARE USED TO MANUALLY PARCEL AND UNPARCEL THE INSTANCE OF THIS CLASS
-    // BECAUSE OTHERWISE ANYTHING THAT IS CHANGED AFTER THE INSTANCE HAS BEEN CREATED IS LOST
-    // ------------------------------------------------------------------------------------------------------
-    constructor(parcel: Parcel) : this(
-        version = parcel.readString() ?: "",
-        apiKey = parcel.readString() ?: "",
-        userID = parcel.readString() ?: "",
-        memberID = parcel.readString() ?: "",
-        studentID = parcel.readString() ?: "",
-        ticketmasterID = parcel.readString() ?: "",
-        yinzid = parcel.readString() ?: "",
-        pushNotificationToken = parcel.readString() ?: "",
-        arbitraryIdentifiers = parcel.readHashMap(HashMap::class.java.classLoader) as HashMap<String, String>,
-        locationEnabled = parcel.readBoolean() ?: false
-    )
-
-    override fun writeToParcel(parcel: Parcel, flags: Int) {
-        parcel.writeString(version)
-        parcel.writeString(apiKey)
-        parcel.writeString(userID)
-        parcel.writeString(memberID)
-        parcel.writeString(studentID)
-        parcel.writeString(ticketmasterID)
-        parcel.writeString(yinzid)
-        parcel.writeString(pushNotificationToken)
-        parcel.writeMap(arbitraryIdentifiers)
-        parcel.writeBoolean(locationEnabled)
-    }
-
-    override fun describeContents(): Int = 0
-
-    companion object CREATOR : Parcelable.Creator<FanMakerSDK> {
-        override fun createFromParcel(parcel: Parcel): FanMakerSDK = FanMakerSDK(parcel)
-        override fun newArray(size: Int): Array<FanMakerSDK?> = arrayOfNulls(size)
-    }
-    // ------------------------------------------------------------------------------------------------------
 
     fun initialize(context: Context, apiKey: String) {
         this.apiKey = apiKey
         this.context = context
-        fanMakerSharedPreferences = FanMakerSharedPreferences(this.context, this.apiKey)
+        fanMakerSharedPreferences = FanMakerSharedPreferences(context, this.apiKey)
+    }
+
+    fun updateBaseUrl(url: String) {
+        this.baseUrl = url
     }
 
     fun isInitialized(): Boolean {
@@ -103,6 +80,72 @@ class FanMakerSDK(
         this.locationEnabled = false
     }
 
+    fun webViewHeaders(): HashMap<String, String> {
+        val headers: HashMap<String, String> = HashMap<String, String>()
+        headers.put("X-FanMaker-SDK-Version", this.version)
+        headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
+        headers.put("X-FanMaker-Mode", "sdk")
+
+        if (this.memberID != "") headers.put("X-Member-ID", this.memberID)
+        if (this.studentID != "") headers.put("X-Student-ID", this.studentID)
+        if (this.ticketmasterID != "") headers.put("X-Ticketmaster-ID", this.ticketmasterID)
+        if (this.yinzid != "") headers.put("X-Yinzid", this.yinzid)
+        if (this.pushNotificationToken != "") headers.put("X-PushNotification-Token", this.pushNotificationToken)
+        if (this.arbitraryIdentifiers.isNotEmpty()) {
+            val jsonIdentifiers = Json.encodeToString(MapSerializer(String.serializer(), String.serializer()), this.arbitraryIdentifiers)
+            headers.put("X-Fanmaker-Identifiers", jsonIdentifiers)
+        }
+
+        val userToken = fanMakerSharedPreferences.getString("token", "")
+        if (userToken != null && userToken != "") {
+            headers.put("X-FanMaker-Token", userToken)
+            headers.put("X-FanMaker-SessionToken", userToken)
+        } else {
+            headers.put("X-FanMaker-Token", this.apiKey)
+        }
+
+        return headers
+    }
+
+    fun canOpenUrl(url: String): Boolean {
+        val urlHost = Uri.parse(url).host?.toLowerCase()
+        return urlHost == "fanmaker" || urlHost == "fanmaker.com"
+    }
+
+    // This function will be used by the FanMakerSDKWebView and FanMakerSDKWebViewFragment
+    // to determine which URL to open.
+    fun formatUrl(url: String? = ""): String {
+        val deepUrl = if(url != null && url.isNotEmpty()) url else this.deepLinkUrl
+        if(deepUrl.isNotEmpty()) {
+            val urlComponents = Uri.parse(this.baseUrl)
+            val deepLinkComponents = Uri.parse(deepUrl)
+            val path = deepLinkComponents.path
+            val query = deepLinkComponents.query
+
+            val newUrl = Uri.parse(this.baseUrl).buildUpon()
+            path?.let { newUrl.appendEncodedPath(it) }
+            query?.let { newUrl.encodedQuery(it) }
+
+            this.deepLinkUrl = ""
+
+            return newUrl.toString()
+        } else {
+            return this.baseUrl
+        }
+    }
+
+    fun handleUrl(url: String) {
+        if (canOpenUrl(url)) {
+            val urlComponents = Uri.parse(url)
+            val path = urlComponents.path
+            val query = urlComponents.query
+
+            this.deepLinkUrl = url
+        }
+    }
+
+    // This function is called when the app is resumed assuming we have a lifecycle observer
+    // established in the main activity.
     @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     fun onResume() {
         // Send app event
@@ -162,6 +205,24 @@ class FanMakerSDK(
             }
         } else {
             Log.e("FanMakerSDK", "Location permission not granted")
+        }
+    }
+}
+
+// Creates a singleton-like registry to hold our FanMakerSDK instances
+class FanMakerSDKs() {
+    companion object {
+        private val instances: MutableMap<String, FanMakerSDK> = mutableMapOf()
+
+        fun setInstance(context: Context, key: String, apiKey: String) {
+            val instance = FanMakerSDK()
+            instance.initialize(context, apiKey)
+            instances[key] = instance
+        }
+
+        @Suppress("UNCHECKED_CAST")
+        fun getInstance(key: String): FanMakerSDK? {
+            return instances[key]
         }
     }
 }

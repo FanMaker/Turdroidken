@@ -24,11 +24,33 @@
         android:theme="@style/Theme.Turducken"
         android:usesCleartextTraffic="true">
         <activity android:name=".FanMakerActivity" />
-        <activity android:name=".MainActivity" android:exported="true" tools:replace="android:exported">
+
+        <!--
+            Note: It is important that the launchMode be set to "signleTask" in the activity to prevent multiple instances
+            or unexpected results from Deep Linking into the FanMaker SDKS.
+        -->
+        <activity android:name=".MainActivity" android:exported="true" tools:replace="android:exported" android:launchMode="singleTask">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- The android.intent.action.ViEW action is used for Deep Linking -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <!--
+                    Establish a scheme that you want to listen for to initialize the FanMaker SDK.
+                    Note: the host must be fanmaker or fanmaker.com to be recognized by the SDK.
+                -->
+                <data
+                    android:scheme="turducken"
+                    android:host="fanmaker" />
+                <data
+                    android:scheme="turducken2"
+                    android:host="fanmaker" />
             </intent-filter>
         </activity>
     </application>

@@ -11,71 +11,142 @@ import android.util.Log
 import android.view.View
 import android.widget.EditText
 import com.fanmaker.sdk.FanMakerSDK
+import com.fanmaker.sdk.FanMakerSDKs
 import com.fanmaker.sdk.FanMakerSDKBeaconManager
 import com.fanmaker.sdk.FanMakerSDKBeaconRegion
 import com.fanmaker.sdk.FanMakerSDKWebView
 import org.altbeacon.beacon.BeaconManager
 
+import android.net.Uri
+
 class MainActivity : AppCompatActivity() {
-    private val fanMakerSDK1 = FanMakerSDK()
-    private val fanMakerSDK2 = FanMakerSDK()
+    // Declare FanMakerSDK instances you want to use
+    var fanMakerSDK1: FanMakerSDK? = null
+    var fanMakerSDK2: FanMakerSDK? = null
+
+    // Declare intents for the FanMakerSDKWebView and FanMakerActivity
+    lateinit var fanmakerIntent1: Intent
+    lateinit var fanmakerIntent2: Intent
+
+    // Declare BeaconManagers for the FanMakerSDK instances
     lateinit var beaconManager1: FanMakerSDKBeaconManager
     lateinit var beaconManager2: FanMakerSDKBeaconManager
 
     var neverAskAgainPermissions = ArrayList<String>()
 
+    fun fanMakerStart(intent: Intent?) {
+        // FanMakerSDKs is a singleton-like registry that can hold any number of FanMakerSDK instances
+        // that you can access by their unique key to insure availability across your app.
+
+        // The first parameter is the context, the second is the key you will use to access the instance, and the third is the API key for the instance.
+        FanMakerSDKs.setInstance(this, "fanMakerSDK1", "<fanmaker token1>")
+        FanMakerSDKs.setInstance(this, "fanMakerSDK2", "<fanmaker token2>")
+
+        // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
+        fanMakerSDK1 = FanMakerSDKs.getInstance("fanMakerSDK1")
+        fanMakerSDK2 = FanMakerSDKs.getInstance("fanMakerSDK2")
+
+        // Create intents for the FanMakerSDKWebView and FanMakerActivity with the appropriate key.
+        // This can be done in the onClick method of a button or wherever you want to start the SDK as well.
+        fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "fanMakerSDK1") }
+        fanmakerIntent2 = Intent(this, FanMakerActivity::class.java).apply { putExtra("fanMakerKey", "fanMakerSDK2") }
+
+        checkPermissions()
+        if (fanMakerSDK1 != null) {
+            // Enable location services for the SDK
+            fanMakerSDK1!!.locationEnabled = true
+            // Lifecycle is needed for the SDK to handle Auto Checkin and App Open awarding
+            lifecycle.addObserver(fanMakerSDK1!!)
+            // Initialize beacon monitoring
+            beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
+            beaconManager1.fetchBeaconRegions()
+        }
+        if (fanMakerSDK2 != null) {
+            // Enable location services for the SDK
+            fanMakerSDK2!!.locationEnabled = true
+            // Lifecycle is needed for the SDK to handle Auto Checkin and App Open awarding
+            lifecycle.addObserver(fanMakerSDK2!!)
+            // Initialize beacon monitoring
+            beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
+            beaconManager2.fetchBeaconRegions()
+        }
+
+        // Check if this intent is started via a deep link
+        if (intent?.action == Intent.ACTION_VIEW) { handleDeepLink(intent) }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        fanMakerSDK1.initialize(applicationContext, "")
-        fanMakerSDK2.initialize(applicationContext, "")
-        lifecycle.addObserver(fanMakerSDK1)
-        lifecycle.addObserver(fanMakerSDK2)
+        // Initializes the FanMakerSDKs, but you can initialize them wherever you want to start the SDK.
+        fanMakerStart(intent)
+    }
 
-        fanMakerSDK1.locationEnabled = true
-        fanMakerSDK2.locationEnabled = true
+    // Assuming your applicaiton uses the android:launchMode="singleTask" attribute in the AndroidManifest.xml file
+    // this method will be called when the app is already running and a new intent is received. Which is useful for deep linking.
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
 
-
-        checkPermissions()
-
-        beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1, application)
-        beaconManager1.fetchBeaconRegions()
-
-        beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2, application)
-        beaconManager2.fetchBeaconRegions()
+        // Check if this intent is started via a deep link and handle it
+        handleDeepLink(intent)
     }
 
     fun setupIdentifiers() {
         val memberID: String = findViewById<EditText>(R.id.memberID).text.toString()
-        if (memberID != "") fanMakerSDK1.memberID = memberID
+        if (memberID != "") fanMakerSDK1?.memberID = memberID
 
         val studentID: String = findViewById<EditText>(R.id.studentID).text.toString()
-        if (studentID != "") fanMakerSDK1.studentID = studentID
+        if (studentID != "") fanMakerSDK1?.studentID = studentID
 
         val ticketmasterID: String = findViewById<EditText>(R.id.ticketmasterID).text.toString()
-        if (ticketmasterID != "") fanMakerSDK1.ticketmasterID = ticketmasterID
+        if (ticketmasterID != "") fanMakerSDK1?.ticketmasterID = ticketmasterID
 
         val yinzID: String = findViewById<EditText>(R.id.yinzID).text.toString()
-        if (yinzID != "") fanMakerSDK1.yinzid = yinzID
+        if (yinzID != "") fanMakerSDK1?.yinzid = yinzID
 
         val pushToken: String = findViewById<EditText>(R.id.pushToken).text.toString()
-        if (pushToken != "") fanMakerSDK1.pushNotificationToken = pushToken
+        if (pushToken != "") fanMakerSDK1?.pushNotificationToken = pushToken
     }
 
     fun openFanMakerSDKWebView(view: View) {
-        val intent1 = Intent(this, FanMakerSDKWebView::class.java).apply {
-            putExtra("fanMakerSDK", fanMakerSDK1)
-        }
-        startActivity(intent1)
+        setupIdentifiers()
+        startActivity(fanmakerIntent1)
     }
 
     fun openFanMakerSDKWebViewFragment(view: View) {
         setupIdentifiers()
 
-        val intent2 = Intent(this, FanMakerActivity::class.java)
-        intent2.putExtra("fanMakerSDK", fanMakerSDK2)
-        startActivity(intent2)
+        startActivity(fanmakerIntent2)
+    }
+
+    // This method is used to handle deep link requests
+    private fun handleDeepLink(intent: Intent?) {
+        val action: String? = intent?.action
+        if(Intent.ACTION_VIEW == action) {
+            val data: Uri? = intent?.data
+
+            // We verify that we have a valid deep link
+            if (data != null) {
+                // We check the scheme of the deep link to determine which FanMakerSDK instance to use
+                // or if you want to handle the deep link within your own application instead.
+                // Establish a scheme for each FanMakerSDK instance you want to handle deep links for
+                // in your AndroidManifest.xml file.
+                val scheme = data.scheme
+                if (scheme == "turducken") {
+                    fanMakerSDK1?.let {
+                        fanMakerSDK1!!.handleUrl(data.toString())
+                        startActivity(fanmakerIntent1)
+                    }
+                } else if(scheme == "turducken2") {
+                    fanMakerSDK2?.let {
+                        fanMakerSDK2!!.handleUrl(data.toString())
+                        startActivity(fanmakerIntent2)
+                    }
+                }
+            }
+        }
     }
 
     fun checkPermissions() {
