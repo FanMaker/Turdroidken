@@ -48,6 +48,7 @@ class MainActivity : AppCompatActivity() {
 
         // Create intents for the FanMakerSDKWebView and FanMakerActivity with the appropriate key.
         // This can be done in the onClick method of a button or wherever you want to start the SDK as well.
+        // It is very important that you pass the key to the intent using putExtra so the SDK knows which instance to use.
         fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "fanMakerSDK1") }
         fanmakerIntent2 = Intent(this, FanMakerActivity::class.java).apply { putExtra("fanMakerKey", "fanMakerSDK2") }
 

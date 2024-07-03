@@ -48,6 +48,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+import android.graphics.Bitmap
+import java.io.ByteArrayOutputStream
+import java.io.FileOutputStream
+
 class FanMakerSDKWebViewFragment : Fragment() {
     private lateinit var fanMakerSDK: FanMakerSDK
     private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
@@ -59,11 +63,12 @@ class FanMakerSDKWebViewFragment : Fragment() {
         Manifest.permission.CAMERA,
         Manifest.permission.WRITE_EXTERNAL_STORAGE,
         Manifest.permission.READ_EXTERNAL_STORAGE,
-        Manifest.permission.READ_MEDIA_IMAGES,
+
     )
     private val MEDIA_RESULTCODE = 1
     private val PERMISSION_RESULTCODE = 2
     private val REQUEST_SELECT_FILE = 100
+    private val REQUEST_IMAGE_CAPTURE = 1
     private val FILENAME_FORMAT = "yyyyMMdd-HHmmssSSS"
     private var cameraId = 1
 
@@ -257,41 +262,41 @@ class FanMakerSDKWebViewFragment : Fragment() {
         alert.show()
     }
 
-    fun openPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
-        var hasFilePermissions = (ContextCompat.checkSelfPermission(requireContext(), android.Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
-        if(!hasFilePermissions) { hasFilePermissions = (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED) }
+    private fun openPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = "image/*"
+        startActivityForResult(intent, REQUEST_SELECT_FILE)
+    }
 
-        if(hasFilePermissions) {
-            val intent = fileChooserParams!!.createIntent()
-            try {
-                startActivityForResult(intent, REQUEST_SELECT_FILE)
-            } catch (e: ActivityNotFoundException) {
-                uploadMessage = null
-                Toast.makeText(context, "Cannot Open File Picker", Toast.LENGTH_LONG).show()
-            }
-        } else {
-            camPermissionMethod = "openPicker"
-            askPermissions()
-        }
+    private fun launchCamera() {
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        // We are trying to open the front camera, but it may not be available
+        intent.putExtra("android.intent.extras.CAMERA_FACING", android.hardware.Camera.CameraInfo.CAMERA_FACING_FRONT)  // for API < 21
+        intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1)  // for API >= 21
+        intent.putExtra("android.intent.extra.USE_FRONT_CAMERA", true)
+        startActivityForResult(intent, REQUEST_IMAGE_CAPTURE)
     }
 
     private fun startCamera() {
-        var hasCamPermissions = (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
-
-        if(!hasCamPermissions) { hasCamPermissions = ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED }
-
-        if(hasCamPermissions) {
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
-            cameraProviderFuture.addListener(Runnable {
-                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                fanMakerCameraProvider = cameraProvider
-
-                bindCameraUseCases()
-            }, ContextCompat.getMainExecutor(requireContext()))
+        if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            launchCamera()
         } else {
-            camPermissionMethod = "startCamera"
-            askPermissions()
+            // Permission is not granted, request it
+            ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.CAMERA), REQUEST_IMAGE_CAPTURE)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_IMAGE_CAPTURE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission was granted
+                launchCamera()
+            } else {
+                genericAlert("Please make sure the app has access to your Camera to use this feature.")
+                uploadMessage?.onReceiveValue(null)
+                uploadMessage = null
+            }
         }
     }
 
@@ -420,7 +425,6 @@ class FanMakerSDKWebViewFragment : Fragment() {
         }
     }
 
-
     private fun askPermissions() {
         permReqLauncher.launch(permission)
     }
@@ -433,12 +437,44 @@ class FanMakerSDKWebViewFragment : Fragment() {
         return true
     }
 
+    fun getImageUri(context: Context, bitmap: Bitmap): Uri {
+        // Get the application's cache directory
+        val filesDir = context.externalCacheDir
+        val imageFile = File(filesDir, "share_image_" + System.currentTimeMillis() + ".png")
+
+        // Write the bitmap to a file
+        val bos = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, bos)
+        val bitmapData = bos.toByteArray()
+
+        // Save bitmap to file
+        val fos = FileOutputStream(imageFile)
+        fos.write(bitmapData)
+        fos.flush()
+        fos.close()
+
+        // Use FileProvider to get a content URI
+        return Uri.fromFile(imageFile)
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data);
         if(requestCode == REQUEST_SELECT_FILE) {
             if (uploadMessage == null)
                 return
             var results: Array<Uri>? = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            uploadMessage?.onReceiveValue(results)
+            uploadMessage = null
+        } else if (requestCode == REQUEST_IMAGE_CAPTURE) {
+            if (data?.extras?.get("data") == null) {
+                uploadMessage?.onReceiveValue(null)
+                uploadMessage = null
+                return
+            }
+
+            val imageBitmap = data?.extras?.get("data") as Bitmap
+            val uri = getImageUri(getContext()!!, imageBitmap)
+            val results: Array<Uri>? = arrayOf(uri)
             uploadMessage?.onReceiveValue(results)
             uploadMessage = null
         }
