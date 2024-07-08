@@ -35,16 +35,26 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+import com.fanmaker.sdk.FanMakerSDKs
+
+import android.graphics.Bitmap
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+
 class FanMakerSDKWebView : AppCompatActivity() {
+    private lateinit var fanMakerSDK: FanMakerSDK
+    private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
+
     private val permission = arrayOf(
         Manifest.permission.CAMERA,
         Manifest.permission.WRITE_EXTERNAL_STORAGE,
         Manifest.permission.READ_EXTERNAL_STORAGE,
-        Manifest.permission.READ_MEDIA_IMAGES,
     )
     private val MEDIA_RESULTCODE = 1
     private val PERMISSION_RESULTCODE = 2
     private val REQUEST_SELECT_FILE = 100
+    private val REQUEST_IMAGE_CAPTURE = 1
     private val FILENAME_FORMAT = "yyyyMMdd-HHmmssSSS"
     private var cameraId = 1
 
@@ -78,6 +88,11 @@ class FanMakerSDKWebView : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.fanmaker_sdk_webview)
+
+        var fanMakerKey = intent.getStringExtra("fanMakerKey")
+        var fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey!!)
+
+        fanMakerSharedPreferences = FanMakerSharedPreferences(getApplicationContext(), fanMakerSDK!!.apiKey)
 
         viewBinding = FanmakerSdkWebviewBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
@@ -163,6 +178,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         }
 
         val jsInterface = FanMakerSDKWebInterface(this,
+            fanMakerSDK,
             { authorized ->
                 var jsString: String = "FanMakerReceiveLocationAuthorization("
                 if (authorized) jsString = "${jsString}true)"
@@ -186,34 +202,19 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
-        val headers: HashMap<String, String> = HashMap<String, String>()
-        headers.put("X-FanMaker-SDK-Version", "1.7.2")
-        headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
-
-        if (FanMakerSDK.memberID != "") headers.put("X-Member-ID", FanMakerSDK.memberID)
-        if (FanMakerSDK.studentID != "") headers.put("X-Student-ID", FanMakerSDK.studentID)
-        if (FanMakerSDK.ticketmasterID != "") headers.put("X-Ticketmaster-ID", FanMakerSDK.ticketmasterID)
-        if (FanMakerSDK.yinzid != "") headers.put("X-Yinzid", FanMakerSDK.yinzid)
-        if (FanMakerSDK.pushNotificationToken != "") headers.put("X-PushNotification-Token", FanMakerSDK.pushNotificationToken)
-        if (FanMakerSDK.arbitraryIdentifiers.isNotEmpty()) {
-            headers["X-Fanmaker-Identifiers"] = Json.encodeToString(FanMakerSDK.arbitraryIdentifiers)
-        }
-
         val queue = Volley.newRequestQueue(this)
-        val url = "https://api.fanmaker.com/api/v2/site_details/info"
-        val settings = this.getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
-        val token = settings.getString("token", "")
-        token?.let {
-            headers.put("X-FanMaker-SessionToken", it)
-        }
+        val url = "https://api3.fanmaker.com/api/v3/site_details/sdk"
 
         val request = object: JsonObjectRequest(Request.Method.GET, url, null,
             { response ->
                 val status = response.getInt("status")
                 if (status == 200) {
                     val data = response.getJSONObject("data")
-                    val sdk_url = data.getString("sdk_url")
-                    webView.loadUrl(sdk_url, headers)
+                    val sdk_url = data.getString("url")
+                    fanMakerSDK!!.updateBaseUrl(sdk_url)
+
+                    val formattedUrl = fanMakerSDK!!.formatUrl()
+                    webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
                 } else {
                     webView.loadUrl("https://admin.fanmaker.com/500")
                 }
@@ -223,18 +224,17 @@ class FanMakerSDKWebView : AppCompatActivity() {
             }
         ) {
             override fun getHeaders(): MutableMap<String, String> {
-                val headers = HashMap<String, String>()
-                headers["X-FanMaker-Token"] = FanMakerSDK.apiKey
-                return headers
+                return fanMakerSDK!!.webViewHeaders()
             }
         }
+
         queue.add(request)
     }
 
     fun genericAlert(message: String) {
         val dialogBuilder = AlertDialog.Builder(this@FanMakerSDKWebView)
 
-//        dialogBuilder.setTitle("Unable to complete your request")
+        // dialogBuilder.setTitle("Unable to complete your request")
         dialogBuilder.setMessage(message)
         dialogBuilder.setCancelable(false)
         dialogBuilder.setNegativeButton("Close", DialogInterface.OnClickListener { dialog, id -> dialog.cancel() })
@@ -242,61 +242,44 @@ class FanMakerSDKWebView : AppCompatActivity() {
         alert.show()
     }
 
-    fun openPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
-        var hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
-        if(!hasFilePermissions) { hasFilePermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED) }
 
-        if(hasFilePermissions) {
-            val intent = fileChooserParams!!.createIntent()
-            try {
-                startActivityForResult(intent, REQUEST_SELECT_FILE)
-            } catch (e: ActivityNotFoundException) {
-                uploadMessage = null
-                Toast.makeText(applicationContext, "Cannot Open File Picker", Toast.LENGTH_LONG).show()
-            }
-        } else {
-            camPermissionMethod = "openPicker"
-            askPermissions()
-        }
+    private fun openPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
+        val intent = Intent(Intent.ACTION_PICK)
+        intent.type = "image/*"
+        startActivityForResult(intent, REQUEST_SELECT_FILE)
+    }
+
+    private fun launchCamera() {
+        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
+        // We are trying to open the front camera, but it may not be available
+        intent.putExtra("android.intent.extras.CAMERA_FACING", android.hardware.Camera.CameraInfo.CAMERA_FACING_FRONT)  // for API < 21
+        intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1)  // for API >= 21
+        intent.putExtra("android.intent.extra.USE_FRONT_CAMERA", true)
+        startActivityForResult(intent, REQUEST_IMAGE_CAPTURE)
     }
 
     private fun startCamera() {
-        var hasCamPermissions = (ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-                && ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED)
-
-        if(!hasCamPermissions) { hasCamPermissions = ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED }
-
-        if(hasCamPermissions) {
-            val cameraProviderFuture = ProcessCameraProvider.getInstance(applicationContext)
-            cameraProviderFuture.addListener({
-                val cameraProvider: ProcessCameraProvider = cameraProviderFuture.get()
-                fanMakerCameraProvider = cameraProvider
-
-                var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-                if(cameraId != 1) { cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA }
-
-                val preview = Preview.Builder()
-                    .build()
-                    .also() {
-                        viewBinding.viewFinder.setVisibility(View.VISIBLE)
-                        viewBinding.closeCameraButton.setVisibility(View.VISIBLE)
-                        viewBinding.imageCaptureButton.setVisibility(View.VISIBLE)
-                        viewBinding.switchCameraButton.setVisibility(View.VISIBLE)
-                        it.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
-                    }
-
-                imageCapture = ImageCapture.Builder().build()
-
-                try {
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(this, cameraSelector, preview, imageCapture)
-                } catch(exc: Exception) {
-                    Log.e("START CAMERA EXCEPTION", "BINDING FAILED", exc)
-                }
-            }, ContextCompat.getMainExecutor(this))
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+            // Permission is already granted
+            launchCamera()
         } else {
-            camPermissionMethod = "startCamera"
-            askPermissions()
+            // Permission is not granted, request it
+            ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.CAMERA), REQUEST_IMAGE_CAPTURE)
+        }
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_IMAGE_CAPTURE) {
+            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                // Permission was granted
+                launchCamera()
+            } else {
+                // Permission denied
+                genericAlert("Please make sure the app has access to your Camera to use this feature.")
+                uploadMessage?.onReceiveValue(null)
+                uploadMessage = null
+            }
         }
     }
 
@@ -380,12 +363,45 @@ class FanMakerSDKWebView : AppCompatActivity() {
         return true
     }
 
+    fun getImageUri(context: Context, bitmap: Bitmap): Uri {
+        // Get the application's cache directory
+        val filesDir = context.externalCacheDir
+        val imageFile = File(filesDir, "share_image_" + System.currentTimeMillis() + ".png")
+
+        // Write the bitmap to a file
+        val bos = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 100, bos)
+        val bitmapData = bos.toByteArray()
+
+        // Save bitmap to file
+        val fos = FileOutputStream(imageFile)
+        fos.write(bitmapData)
+        fos.flush()
+        fos.close()
+
+        // Use FileProvider to get a content URI
+        return Uri.fromFile(imageFile)
+    }
+
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data);
         if(requestCode == REQUEST_SELECT_FILE) {
             if (uploadMessage == null)
                 return
             var results: Array<Uri>? = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
+            uploadMessage?.onReceiveValue(results)
+            uploadMessage = null
+        }
+        else if (requestCode == REQUEST_IMAGE_CAPTURE) {
+            if (data?.extras?.get("data") == null) {
+                uploadMessage?.onReceiveValue(null)
+                uploadMessage = null
+                return
+            }
+
+            val imageBitmap = data?.extras?.get("data") as Bitmap
+            val uri = getImageUri(applicationContext, imageBitmap)
+            val results: Array<Uri>? = arrayOf(uri)
             uploadMessage?.onReceiveValue(results)
             uploadMessage = null
         }

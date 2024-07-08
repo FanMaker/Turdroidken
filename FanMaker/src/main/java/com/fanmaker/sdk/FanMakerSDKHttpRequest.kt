@@ -7,20 +7,28 @@ import com.android.volley.toolbox.JsonObjectRequest
 import org.json.JSONObject
 
 open class FanMakerSDKHttpRequest(
+    val fanMakerSDK: FanMakerSDK,
     method: Int,
     path: String?,
     jsonRequest: JSONObject?,
+    val token: String? = "",
     listener: Response.Listener<JSONObject>?,
-    errorListener: Response.ErrorListener?
+    errorListener: Response.ErrorListener?,
 ) : JsonObjectRequest(method, "$URL/$path", jsonRequest, listener, errorListener) {
 
     open fun getFanMakerToken(): String {
-        return FanMakerSDK.apiKey
+        if (token != null && token != "") { return token }
+        return fanMakerSDK.apiKey
     }
 
     override fun getHeaders(): MutableMap<String, String> {
         val headers = HashMap<String, String>()
-        headers["X-FanMaker-Token"] = getFanMakerToken()
+        var fanmaker_token = getFanMakerToken()
+        headers["X-FanMaker-Token"] = fanmaker_token
+        headers["Authorization"] = fanmaker_token
+        headers["X-FanMaker-Mode"] = "sdk"
+        headers["X-FanMaker-SDK-Version"] = fanMakerSDK.version
+
         return headers
     }
 
@@ -40,6 +48,6 @@ open class FanMakerSDKHttpRequest(
     }
 
     companion object {
-        const val URL = "https://api.fanmaker.com/api/v2"
+        const val URL = "https://api3.fanmaker.com/api/v3"
     }
 }

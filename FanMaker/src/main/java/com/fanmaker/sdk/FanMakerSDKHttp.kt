@@ -8,11 +8,15 @@ import com.android.volley.Request.Method
 import org.json.JSONObject
 import java.net.ConnectException
 
-class FanMakerSDKHttp(val context: Context) {
+class FanMakerSDKHttp(
+    val fanMakerSDK: FanMakerSDK,
+    val context: Context,
+    val token: String? = ""
+) {
     val queue = Volley.newRequestQueue(context)
 
     fun get(path: String, onSuccess: (JSONObject) -> Unit, onError: (Int, String) -> Unit) {
-        val request = FanMakerSDKHttpRequest(Method.GET, path, null,
+        val request = FanMakerSDKHttpRequest(fanMakerSDK, Method.GET, path, null, token,
             { response ->
                 val status = response.getInt("status")
                 if (status == 200) {
@@ -41,10 +45,10 @@ class FanMakerSDKHttp(val context: Context) {
     ) {
 
         val body = JSONObject(params)
-        val request = object: FanMakerSDKHttpRequest(Method.POST, path, body,
+        val request = object: FanMakerSDKHttpRequest(fanMakerSDK, Method.POST, path, body, token,
             { response ->
                 val status = response.getInt("status")
-                if (status >= 200  && status <= 300) {
+                if (status >= 200  && status < 300) {
                     onSuccess(response)
                 } else {
                     onError(status, response.getString("message").toString())
@@ -63,8 +67,7 @@ class FanMakerSDKHttp(val context: Context) {
             }
         ) {
             override fun getFanMakerToken(): String {
-                val settings = context.getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
-                return settings.getString("token", super.getFanMakerToken()).toString()
+                return super.getFanMakerToken()
             }
         }
         queue.add(request)

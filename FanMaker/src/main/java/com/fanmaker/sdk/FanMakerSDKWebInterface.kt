@@ -18,10 +18,12 @@ import android.net.Uri
 
 class FanMakerSDKWebInterface(
     private val mContext: Context,
+    private val fanMakerSDK: FanMakerSDK,
     private val onRequestLocationAuthorization: (authorized: Boolean) -> Unit,
     private val onUpdateLocation: (location: Location) -> Unit
 ) {
     private var locationManager: LocationManager? = null
+    private var fanMakerSharedPreferences: FanMakerSharedPreferences = FanMakerSharedPreferences(mContext, fanMakerSDK.apiKey)
 
     @JavascriptInterface
     fun sdkOpenUrl(url: String) {
@@ -32,10 +34,12 @@ class FanMakerSDKWebInterface(
 
     @JavascriptInterface
     fun storeSessionToken(token: String) {
-        val settings = mContext.getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
-        val editor = settings.edit()
-        editor.putString("token", token)
-        editor.commit()
+        // val settings = mContext.getSharedPreferences("com.fanmaker.sdk", Context.MODE_PRIVATE)
+        // val editor = settings.edit()
+        // editor.putString("token", token)
+        // editor.commit()
+        fanMakerSharedPreferences.putString("token", token)
+        fanMakerSharedPreferences.commit()
         Log.w("FANMAKER", "SESSION SAVED")
     }
 
@@ -57,15 +61,15 @@ class FanMakerSDKWebInterface(
         Log.w("FANMAKER", json)
 
         val data = JSONObject(json)
-        FanMakerSDK.userID = data.getString("user_id")
-        FanMakerSDK.memberID = data.getString("member_id")
-        FanMakerSDK.studentID = data.getString("student_id")
-        FanMakerSDK.ticketmasterID = data.getString("ticketmaster_id")
-        FanMakerSDK.yinzid = data.getString("yinzid")
-        FanMakerSDK.pushNotificationToken = data.getString("push_token")
+        fanMakerSDK.userID = data.getString("user_id")
+        fanMakerSDK.memberID = data.getString("member_id")
+        fanMakerSDK.studentID = data.getString("student_id")
+        fanMakerSDK.ticketmasterID = data.getString("ticketmaster_id")
+        fanMakerSDK.yinzid = data.getString("yinzid")
+        fanMakerSDK.pushNotificationToken = data.getString("push_token")
         val arbitraryIdentifiersJson = data.getJSONObject("arbitrary_dentifiers")
         val arbitraryIdentifiers: HashMap<String, String> = jsonObjectToHashMap(arbitraryIdentifiersJson)
-        FanMakerSDK.arbitraryIdentifiers = arbitraryIdentifiers
+        fanMakerSDK.arbitraryIdentifiers = arbitraryIdentifiers
     }
 
     @JavascriptInterface
