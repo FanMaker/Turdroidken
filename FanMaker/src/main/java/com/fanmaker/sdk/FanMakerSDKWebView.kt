@@ -35,6 +35,8 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+import com.fanmaker.sdk.FanMakerSDKs
+
 import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import java.io.File

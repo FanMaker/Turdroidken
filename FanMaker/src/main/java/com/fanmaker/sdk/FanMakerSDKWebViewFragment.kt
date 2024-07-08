@@ -117,7 +117,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         var fanMakerKey = activity?.intent?.getStringExtra("fanMakerKey")
         var fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey!!)
 
-        fanMakerSharedPreferences = FanMakerSharedPreferences(getContext()!!, fanMakerSDK!!.apiKey)
+        fanMakerSharedPreferences = FanMakerSharedPreferences(requireContext(), fanMakerSDK!!.apiKey)
 
         webView.settings.javaScriptEnabled = true
         webView.settings.javaScriptCanOpenWindowsAutomatically = true
@@ -473,7 +473,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
             }
 
             val imageBitmap = data?.extras?.get("data") as Bitmap
-            val uri = getImageUri(getContext()!!, imageBitmap)
+            val uri = getImageUri(requireContext(), imageBitmap)
             val results: Array<Uri>? = arrayOf(uri)
             uploadMessage?.onReceiveValue(results)
             uploadMessage = null

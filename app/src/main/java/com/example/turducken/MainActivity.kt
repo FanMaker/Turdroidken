@@ -40,18 +40,18 @@ class MainActivity : AppCompatActivity() {
         // that you can access by their unique key to insure availability across your app.
 
         // The first parameter is the context, the second is the key you will use to access the instance, and the third is the API key for the instance.
-        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY_1>")
-        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY_2>", "<SDK_KEY_2>")
+        FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
+        FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
 
         // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
-        fanMakerSDK1 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
-        fanMakerSDK2 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY_2>")
+        fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey")
+        fanMakerSDK2 = FanMakerSDKs.getInstance("devDefinedKey2")
 
         // Create intents for the FanMakerSDKWebView and FanMakerActivity with the appropriate key.
         // This can be done in the onClick method of a button or wherever you want to start the SDK as well.
         // It is very important that you pass the key to the intent using putExtra so the SDK knows which instance to use.
-        fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        fanmakerIntent2 = Intent(this, FanMakerActivity::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY_2>") }
+        fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "devDefinedKey1") }
+        fanmakerIntent2 = Intent(this, FanMakerActivity::class.java).apply { putExtra("fanMakerKey", "devDefinedKey2") }
 
         checkPermissions()
         if (fanMakerSDK1 != null) {
