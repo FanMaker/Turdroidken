@@ -17,6 +17,7 @@ import com.fanmaker.sdk.FanMakerSDKBeaconRegion
 import com.fanmaker.sdk.FanMakerSDKWebView
 import org.altbeacon.beacon.BeaconManager
 
+// Used for Deep / Universal Linking
 import android.net.Uri
 
 class MainActivity : AppCompatActivity() {
@@ -56,7 +57,7 @@ class MainActivity : AppCompatActivity() {
         if (fanMakerSDK1 != null) {
             // Enable location services for the SDK
             fanMakerSDK1!!.locationEnabled = true
-            // Lifecycle is needed for the SDK to handle Auto Checkin and App Open awarding
+            // Lifecycle is needed for the SDK to handle Auto Checkin and to Reward Usage of Host App
             lifecycle.addObserver(fanMakerSDK1!!)
             // Initialize beacon monitoring
             beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
@@ -65,7 +66,7 @@ class MainActivity : AppCompatActivity() {
         if (fanMakerSDK2 != null) {
             // Enable location services for the SDK
             fanMakerSDK2!!.locationEnabled = true
-            // Lifecycle is needed for the SDK to handle Auto Checkin and App Open awarding
+            // Lifecycle is needed for the SDK to handle Auto Checkin and to Reward Usage of Host App
             lifecycle.addObserver(fanMakerSDK2!!)
             // Initialize beacon monitoring
             beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
