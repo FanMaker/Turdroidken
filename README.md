@@ -535,8 +535,38 @@ Note: you may only have 1 identifier per key. If you require more, please contac
 
 These identifiers must be set **before** displaying `FanMakerSDKWebView`.
 
-**Note**: All of these identifiers, along with the FanMaker's User ID, are automatically defined when a user successfully logins and become accessible via the following public variables:
+### Passing Custom Parameters
 
+Similar to passing custom identifiers, you can also pass custom parameters to the SDK. Here is how to do so and some of the options.
+```
+import com.fanmaker.sdk.FanMakerSDKWebView
+
+class MyActivity : AppCompatActivity() {
+    var fanMakerSDK: FanMakerSDK? = null
+    . . .
+
+    fun openFanMakerSDKWebView(view: View) {
+        // below is a static member id example like above
+        fanMakerSDK?.memberID = <memberID>
+
+        // This would tell the SDK that we want to hide the FanMaker Menu
+        fanMakerSDK?.fanMakerParameters["hide_menu"] = true
+        
+        // These tell the SDK what the viewport dimensions are so FanMaker can respond accordingly
+        fanMakerSDK?.fanMakerParameters["viewport_width"] = 512
+        fanMakerSDK?.fanMakerParameters["viewport_height"] = 1024
+
+        val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
+        startActivity(intent)
+    }
+}
+
+```
+Note: you may only have 1 parameter per key.
+
+These parameters must be set **before** displaying `FanMakerSDKWebView`.
+
+**Note**: All of these identifiers, along with the FanMaker's User ID, are automatically defined when a user successfully logins and become accessible via the following public variables:
 ```
 ...
 var fanMakerSDK: FanMakerSDK? = null
