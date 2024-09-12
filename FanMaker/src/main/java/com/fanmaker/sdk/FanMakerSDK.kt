@@ -34,7 +34,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.builtins.MapSerializer
 
 class FanMakerSDK(
-    var version: String = "2.0.0",
+    var version: String = "2.0.1",
     var apiKey: String = "",
     var userID: String = "",
     var memberID: String = "",
@@ -43,6 +43,7 @@ class FanMakerSDK(
     var yinzid: String = "",
     var pushNotificationToken: String = "",
     var arbitraryIdentifiers: HashMap<String, String> = HashMap<String, String>(),
+    var fanMakerParameters: HashMap<String, Any> = HashMap<String, Any>(),
     var locationEnabled: Boolean = false,
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",
@@ -94,6 +95,14 @@ class FanMakerSDK(
         if (this.arbitraryIdentifiers.isNotEmpty()) {
             val jsonIdentifiers = Json.encodeToString(MapSerializer(String.serializer(), String.serializer()), this.arbitraryIdentifiers)
             headers.put("X-Fanmaker-Identifiers", jsonIdentifiers)
+        }
+
+        if (this.fanMakerParameters.isNotEmpty()) {
+            val jsonParameters = Json.encodeToString(MapSerializer(String.serializer(), AnySerializer), this.fanMakerParameters)
+            headers.put("X-Fanmaker-Parameters", jsonParameters)
+            for ((key, value) in headers) {
+                Log.d("FanMakerError", "Header: $key = $value")
+            }
         }
 
         val userToken = fanMakerSharedPreferences.getString("token", "")

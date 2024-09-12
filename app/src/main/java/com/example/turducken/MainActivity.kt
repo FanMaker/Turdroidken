@@ -40,11 +40,11 @@ class MainActivity : AppCompatActivity() {
         // that you can access by their unique key to insure availability across your app.
 
         // The first parameter is the context, the second is the key you will use to access the instance, and the third is the API key for the instance.
-        FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
-        FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
+         FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
+         FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
 
         // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
-        fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey")
+        fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey1")
         fanMakerSDK2 = FanMakerSDKs.getInstance("devDefinedKey2")
 
         // Create intents for the FanMakerSDKWebView and FanMakerActivity with the appropriate key.
@@ -85,7 +85,7 @@ class MainActivity : AppCompatActivity() {
         fanMakerStart(intent)
     }
 
-    // Assuming your applicaiton uses the android:launchMode="singleTask" attribute in the AndroidManifest.xml file
+    // Assuming your application uses the android:launchMode="singleTask" attribute in the AndroidManifest.xml file
     // this method will be called when the app is already running and a new intent is received. Which is useful for deep linking.
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
@@ -110,10 +110,15 @@ class MainActivity : AppCompatActivity() {
 
         val pushToken: String = findViewById<EditText>(R.id.pushToken).text.toString()
         if (pushToken != "") fanMakerSDK1?.pushNotificationToken = pushToken
+
+        fanMakerSDK1!!.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
+        // fanMakerSDK1!!.fanMakerParameters["hide_menu"] = true
     }
 
     fun openFanMakerSDKWebView(view: View) {
         setupIdentifiers()
+        // An example to go to a specific page in the FanMaker SDK
+        fanMakerSDK1?.handleUrl("schema://FanMaker/store")
         startActivity(fanmakerIntent1)
     }
 
