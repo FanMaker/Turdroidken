@@ -56,6 +56,40 @@ class FanMakerSDKWebInterface(
         return hashMap
     }
 
+    fun jsonObjectToAnyHashMap(jsonObject: JSONObject): HashMap<String, Any> {
+        val hashMap = HashMap<String, Any>()
+        val keys = jsonObject.keys()
+
+        while (keys.hasNext()) {
+            val key = keys.next() as String
+            val value = jsonObject.get(key) // Use get() to handle multiple types
+
+            // Depending on the value type, you can either directly add it to the map
+            // or further process it (e.g., if it's another JSONObject or JSONArray)
+            when (value) {
+                is JSONObject -> hashMap[key] = jsonObjectToAnyHashMap(value) // Recursively handle JSONObject
+                is org.json.JSONArray -> hashMap[key] = jsonArrayToList(value) // Convert JSONArray to List
+                else -> hashMap[key] = value // Add other types (String, Int, Boolean, etc.) directly
+            }
+        }
+
+        return hashMap
+    }
+
+    // Helper function to convert JSONArray to List<Any>
+    fun jsonArrayToList(jsonArray: org.json.JSONArray): List<Any> {
+        val list = mutableListOf<Any>()
+        for (i in 0 until jsonArray.length()) {
+            val value = jsonArray.get(i)
+            when (value) {
+                is JSONObject -> list.add(jsonObjectToAnyHashMap(value)) // Handle nested JSONObject
+                is org.json.JSONArray -> list.add(jsonArrayToList(value)) // Handle nested JSONArray
+                else -> list.add(value) // Add primitive types (String, Int, Boolean, etc.)
+            }
+        }
+        return list
+    }
+
     @JavascriptInterface
     fun setIdentifiers(json: String) {
         Log.w("FANMAKER", json)
@@ -67,9 +101,13 @@ class FanMakerSDKWebInterface(
         fanMakerSDK.ticketmasterID = data.getString("ticketmaster_id")
         fanMakerSDK.yinzid = data.getString("yinzid")
         fanMakerSDK.pushNotificationToken = data.getString("push_token")
-        val arbitraryIdentifiersJson = data.getJSONObject("arbitrary_dentifiers")
+        val arbitraryIdentifiersJson = data.getJSONObject("arbitrary_identifiers")
         val arbitraryIdentifiers: HashMap<String, String> = jsonObjectToHashMap(arbitraryIdentifiersJson)
         fanMakerSDK.arbitraryIdentifiers = arbitraryIdentifiers
+
+        val fanMakerParametersJson = data.getJSONObject("fanmaker_parameters")
+        val fanMakerParameters: HashMap<String, Any> = jsonObjectToAnyHashMap(fanMakerParametersJson)
+        fanMakerSDK.fanMakerParameters = fanMakerParameters
     }
 
     @JavascriptInterface
