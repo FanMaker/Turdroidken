@@ -41,10 +41,16 @@ import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import android.widget.ImageView
+import android.graphics.drawable.AnimationDrawable
+import android.widget.FrameLayout
 
 class FanMakerSDKWebView : AppCompatActivity() {
     private lateinit var fanMakerSDK: FanMakerSDK
     private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
+    lateinit var animationDrawable: AnimationDrawable
+    lateinit var loadingAnimationFrame: FrameLayout
+    lateinit var loadingAnimationView: ImageView
 
     private val permission = arrayOf(
         Manifest.permission.CAMERA,
@@ -103,7 +109,26 @@ class FanMakerSDKWebView : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = findViewById<WebView>(R.id.fanmaker_sdk_webview)
-        webView.webViewClient = WebViewClient()
+        if(fanMakerSDK.useDarkLoadingScreen) {
+            loadingAnimationFrame = findViewById<FrameLayout>(R.id.fanmaker_sdk_dark_loading_frame)
+            loadingAnimationView = findViewById<ImageView>(R.id.darkLoadingGif)
+        } else {
+            loadingAnimationFrame = findViewById<FrameLayout>(R.id.fanmaker_sdk_light_loading_frame)
+            loadingAnimationView = findViewById<ImageView>(R.id.lightLoadingGif)
+        }
+
+        loadingAnimationFrame.visibility = FrameLayout.VISIBLE
+        animationDrawable = loadingAnimationView.drawable as AnimationDrawable
+        animationDrawable.start()
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                loadingAnimationFrame.visibility = FrameLayout.GONE
+                animationDrawable.stop()
+            }
+        }
+
         webView.webChromeClient = WebChromeClient()
 
         webView.settings.javaScriptEnabled = true

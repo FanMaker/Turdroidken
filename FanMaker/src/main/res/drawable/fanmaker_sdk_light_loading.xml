@@ -1,0 +1,33 @@
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:oneshot="false">
+    <item android:drawable="@drawable/fanmaker_sdk_loading_0" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_1" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_2" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_3" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_4" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_5" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_6" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_7" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_8" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_9" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_10" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_11" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_12" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_13" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_14" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_15" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_16" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_17" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_18" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_19" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_20" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_21" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_22" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_23" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_24" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_25" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_26" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_27" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_28" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_loading_29" android:duration="50" />
+</animation-list>

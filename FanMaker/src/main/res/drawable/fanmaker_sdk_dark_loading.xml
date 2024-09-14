@@ -1,0 +1,25 @@
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:oneshot="false">
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_0" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_1" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_2" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_3" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_4" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_5" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_6" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_7" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_8" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_9" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_10" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_11" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_12" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_13" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_14" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_15" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_16" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_17" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_18" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_19" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_20" android:duration="50" />
+    <item android:drawable="@drawable/fanmaker_sdk_dark_loading_21" android:duration="50" />
+</animation-list>

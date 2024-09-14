@@ -48,6 +48,10 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+import android.widget.ImageView
+import android.graphics.drawable.AnimationDrawable
+import android.widget.FrameLayout
+
 import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
@@ -55,6 +59,9 @@ import java.io.FileOutputStream
 class FanMakerSDKWebViewFragment : Fragment() {
     private lateinit var fanMakerSDK: FanMakerSDK
     private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
+    lateinit var animationDrawable: AnimationDrawable
+    lateinit var loadingAnimationFrame: FrameLayout
+    lateinit var loadingAnimationView: ImageView
 
     private var _viewBinding: FanmakerSdkWebviewFragmentBinding? = null
     private val viewBinding get() = _viewBinding!!
@@ -109,13 +116,31 @@ class FanMakerSDKWebViewFragment : Fragment() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = viewBinding.root.findViewById<WebView>(R.id.fanmaker_sdk_webview)
-        webView.webViewClient = WebViewClient()
         webView.webChromeClient = WebChromeClient()
-
         val intent = Intent(Intent.ACTION_GET_CONTENT)
 
         var fanMakerKey = activity?.intent?.getStringExtra("fanMakerKey")
         var fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey!!)
+
+        if(fanMakerSDK!!.useDarkLoadingScreen) {
+            loadingAnimationFrame = viewBinding.root.findViewById<FrameLayout>(R.id.fanmaker_sdk_dark_loading_frame)
+            loadingAnimationView = viewBinding.root.findViewById<ImageView>(R.id.darkLoadingGif)
+        } else {
+            loadingAnimationFrame = viewBinding.root.findViewById<FrameLayout>(R.id.fanmaker_sdk_light_loading_frame)
+            loadingAnimationView = viewBinding.root.findViewById<ImageView>(R.id.lightLoadingGif)
+        }
+
+        loadingAnimationFrame.visibility = FrameLayout.VISIBLE
+        animationDrawable = loadingAnimationView.drawable as AnimationDrawable
+        animationDrawable.start()
+
+        webView.webViewClient = object : WebViewClient() {
+            override fun onPageFinished(view: WebView?, url: String?) {
+                super.onPageFinished(view, url)
+                loadingAnimationFrame.visibility = FrameLayout.GONE
+                animationDrawable.stop()
+            }
+        }
 
         fanMakerSharedPreferences = FanMakerSharedPreferences(requireContext(), fanMakerSDK!!.apiKey)
 
