@@ -57,6 +57,8 @@ class MainActivity : AppCompatActivity() {
         if (fanMakerSDK1 != null) {
             // Enable location services for the SDK
             fanMakerSDK1!!.locationEnabled = true
+            // Set Dark Loading Screen
+            fanMakerSDK1!!.useDarkLoadingScreen = true
             // Lifecycle is needed for the SDK to handle Auto Checkin and to Reward Usage of Host App
             lifecycle.addObserver(fanMakerSDK1!!)
             // Initialize beacon monitoring

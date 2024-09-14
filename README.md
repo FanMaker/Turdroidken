@@ -338,6 +338,12 @@ fun openFanMakerSDKWebViewFragment(view: View) {
     }
 ```
 
+### Loading Animation | Light vs Dark
+By default the FanMaker SDK will use a Light loading animated view when initializing the FanMaker SDK. There is an optional Dark loading animated view that you can use instead:
+```
+fanMakerSDK1!!.useDarkLoadingScreen = true
+```
+
 ### Deep Linking / Universal Links
 If you wish to link to something within the FanMaker SDK, you need to setup your application to accept URL Scheme or Universal Links, or know the resource you are trying to access.
 
