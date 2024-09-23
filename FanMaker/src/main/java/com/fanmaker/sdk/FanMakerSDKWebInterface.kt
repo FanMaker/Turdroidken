@@ -101,13 +101,20 @@ class FanMakerSDKWebInterface(
         fanMakerSDK.ticketmasterID = data.getString("ticketmaster_id")
         fanMakerSDK.yinzid = data.getString("yinzid")
         fanMakerSDK.pushNotificationToken = data.getString("push_token")
-        val arbitraryIdentifiersJson = data.getJSONObject("arbitrary_identifiers")
-        val arbitraryIdentifiers: HashMap<String, String> = jsonObjectToHashMap(arbitraryIdentifiersJson)
-        fanMakerSDK.arbitraryIdentifiers = arbitraryIdentifiers
 
-        val fanMakerParametersJson = data.getJSONObject("fanmaker_parameters")
-        val fanMakerParameters: HashMap<String, Any> = jsonObjectToAnyHashMap(fanMakerParametersJson)
-        fanMakerSDK.fanMakerParameters = fanMakerParameters
+        if (data.has("arbitrary_identifiers")) {
+            val arbitraryIdentifiersJson = data.getJSONObject("arbitrary_identifiers")
+            val arbitraryIdentifiers: HashMap<String, String> =
+                jsonObjectToHashMap(arbitraryIdentifiersJson)
+            fanMakerSDK.arbitraryIdentifiers = arbitraryIdentifiers
+        }
+
+        if (data.has("fanmaker_parameters")) {
+            val fanMakerParametersJson = data.getJSONObject("fanmaker_parameters")
+            val fanMakerParameters: HashMap<String, Any> =
+                jsonObjectToAnyHashMap(fanMakerParametersJson)
+            fanMakerSDK.fanMakerParameters = fanMakerParameters
+        }
     }
 
     @JavascriptInterface

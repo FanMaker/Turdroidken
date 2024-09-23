@@ -34,7 +34,7 @@ import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.builtins.MapSerializer
 
 class FanMakerSDK(
-    var version: String = "2.0.3",
+    var version: String = "2.0.4",
     var apiKey: String = "",
     var userID: String = "",
     var memberID: String = "",
