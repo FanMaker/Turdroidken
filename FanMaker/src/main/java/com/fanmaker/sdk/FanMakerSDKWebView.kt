@@ -95,8 +95,19 @@ class FanMakerSDKWebView : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.fanmaker_sdk_webview)
 
-        var fanMakerKey = intent.getStringExtra("fanMakerKey")
-        var fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey!!)
+        val fanMakerKey = intent.getStringExtra("fanMakerKey")
+        if (fanMakerKey == null) {
+            Log.e("FanMakerSDKWebView", "fanMakerKey is null. Cannot initialize FanMakerSDK.")
+            finish() // Close the activity
+            return
+        }
+
+        val fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey)
+        if (fanMakerSDK == null) {
+            Log.e("FanMakerSDKWebView", "Failed to get instance of FanMakerSDK.")
+            finish() // Close the activity
+            return
+        }
 
         fanMakerSharedPreferences = FanMakerSharedPreferences(getApplicationContext(), fanMakerSDK!!.apiKey)
 

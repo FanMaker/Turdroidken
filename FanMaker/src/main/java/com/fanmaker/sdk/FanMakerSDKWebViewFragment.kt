@@ -56,6 +56,8 @@ import android.graphics.Bitmap
 import java.io.ByteArrayOutputStream
 import java.io.FileOutputStream
 
+import com.fanmaker.sdk.FanMakerSDKs
+
 class FanMakerSDKWebViewFragment : Fragment() {
     private lateinit var fanMakerSDK: FanMakerSDK
     private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
@@ -119,8 +121,17 @@ class FanMakerSDKWebViewFragment : Fragment() {
         webView.webChromeClient = WebChromeClient()
         val intent = Intent(Intent.ACTION_GET_CONTENT)
 
-        var fanMakerKey = activity?.intent?.getStringExtra("fanMakerKey")
-        var fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey!!)
+        val fanMakerKey = activity?.intent?.getStringExtra("fanMakerKey")
+        if (fanMakerKey == null) {
+            Log.e("FanMakerSDKWebViewFragment", "fanMakerKey is null. Cannot initialize FanMakerSDK.")
+            return viewBinding.root
+        }
+
+        val fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey)
+        if (fanMakerSDK == null) {
+            Log.e("FanMakerSDKWebViewFragment", "Failed to get instance of FanMakerSDK.")
+            return viewBinding.root
+        }
 
         if(fanMakerSDK!!.useDarkLoadingScreen) {
             loadingAnimationFrame = viewBinding.root.findViewById<FrameLayout>(R.id.fanmaker_sdk_dark_loading_frame)
@@ -150,7 +161,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         webView.settings.allowContentAccess = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
 
-//        if(!isPermissionGranted()) { askPermissions() }
+        // if(!isPermissionGranted()) { askPermissions() }
 
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
@@ -324,7 +335,6 @@ class FanMakerSDKWebViewFragment : Fragment() {
             }
         }
     }
-
     private fun bindCameraUseCases() {
         var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
         if(cameraId != 1) { cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA }

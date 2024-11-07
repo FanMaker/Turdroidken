@@ -22,10 +22,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.Turducken"
         android:usesCleartextTraffic="true">
-        <activity android:name=".FanMakerActivity" />
+        <activity android:exported="true" android:name=".FanMakerActivity" />
 
         <!--
-            Note: It is important that the launchMode be set to "signleTask" in the activity to prevent multiple instances
+            Note: It is important that the launchMode be set to "singleTask" in the activity to prevent multiple instances
             or unexpected results from Deep Linking into the FanMaker SDKS.
         -->
         <activity android:name=".MainActivity" android:exported="true" tools:replace="android:exported" android:launchMode="singleTask">
@@ -53,5 +53,4 @@
             </intent-filter>
         </activity>
     </application>
-
 </manifest>
