@@ -349,7 +349,6 @@ If you wish to link to something within the FanMaker SDK, you need to setup your
 
 An example of using a URL scheme to open app links:
 
-
 In your `AndroidManifest.xml` you will need to establish conditions by which your app will know to open. These will be in the `<intent-filter>` of your activity. It is important that you have the action of `android.intent.action.VIEW` and the categories of `android.intent.category.DEFAULT` and `android.intent.category.BROWSABLE`. Furthermore, it is highly recommended that you use the `launchMode` of `singleTask` to prevent multiple instances of the application from being opened when handling deep / universal links and to mitigate any issues related to the navigation stack.
 
 ```
@@ -452,12 +451,14 @@ class MainActivity : AppCompatActivity() {
 
 ```
 
-It should also be noted, that the FanMakerSDK intents used in this exaple are established as a `lateinit var` and are defined in the `onCreate` method like other examples in this document.
+It should also be noted, that the FanMakerSDK intents used in this example are established as a `lateinit var` and are defined in the `onCreate` method like other examples in this document.
 
 **Important**: The FanMakerSDK verifies that the `host` is either `fanmaker` or `fanmaker.com`. If you are not using a deep link with a custom scheme, like `turdroidken`, then you will need to format the URL yourself assuming you have defined a identifable link for it like:
 ```
 https://yourwebsite.com/fanmaker/store/items/1234 // example link the user has clicked on
 ```
+
+When passing a deeplink/universal link to the Fanmaker SDK, this simply tells the SDK that when it is opened next to navigate to the desired route. If multiple links are passed without opening the SDK, then only the latest link will be shown to the user.
 
 In your `MainActivity`
 ```
