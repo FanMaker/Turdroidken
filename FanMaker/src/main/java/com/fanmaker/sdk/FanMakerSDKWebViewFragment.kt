@@ -255,7 +255,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val queue = Volley.newRequestQueue(requireActivity())
-        val url = "https://api3.fanmaker.com/api/v3/site_details/sdk"
+        val url = "${FanMakerSDKHttpRequest.URL}/site_details/sdk"
 
         val settings = fanMakerSharedPreferences.getSharedPreferences()
 
@@ -267,10 +267,10 @@ class FanMakerSDKWebViewFragment : Fragment() {
                     val data = response.getJSONObject("data")
                     val sdk_url = data.getString("url")
                     fanMakerSDK!!.updateBaseUrl(sdk_url)
-                    val formattedUrl = fanMakerSDK!!.formatUrl()
-                    Log.w("FanMakerSDK", formattedUrl)
-
-                    webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
+                    fanMakerSDK!!.formatUrl { formattedUrl ->
+                        Log.w("FanMakerSDK", formattedUrl)
+                        webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
+                    }
                 } else {
                     webView.loadUrl("https://admin.fanmaker.com/500")
                 }

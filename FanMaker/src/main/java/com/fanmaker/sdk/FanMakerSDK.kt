@@ -33,23 +33,107 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.builtins.MapSerializer
 
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.runBlocking
+
+class ObservableHashMap<K, V>(
+    private val onModified: () -> Unit
+) : HashMap<K, V>() {
+    override fun put(key: K, value: V): V? {
+        val result = super.put(key, value)
+        onModified()
+        return result
+    }
+
+    override fun remove(key: K): V? {
+        val result = super.remove(key)
+        onModified()
+        return result
+    }
+
+    override fun putAll(from: Map<out K, V>) {
+        super.putAll(from)
+        onModified()
+    }
+
+    override fun clear() {
+        super.clear()
+        onModified()
+    }
+}
+
 class FanMakerSDK(
     var version: String = "2.0.5",
     var apiKey: String = "",
-    var userID: String = "",
-    var memberID: String = "",
-    var studentID: String = "",
-    var ticketmasterID: String = "",
-    var yinzid: String = "",
-    var pushNotificationToken: String = "",
-    var arbitraryIdentifiers: HashMap<String, String> = HashMap<String, String>(),
+    private var _userID: String = "",
+    private var _memberID: String = "",
+    private var _studentID: String = "",
+    private var _ticketmasterID: String = "",
+    private var _yinzid: String = "",
+    private var _pushNotificationToken: String = "",
+    private var _arbitraryIdentifiers: ObservableHashMap<String, String> = ObservableHashMap { },
     var fanMakerParameters: HashMap<String, Any> = HashMap<String, Any>(),
+    var fanMakerUserToken: HashMap<String, Any> = HashMap<String, Any>(),
     var useDarkLoadingScreen: Boolean = false,
     var locationEnabled: Boolean = false,
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",
     var deepLinkUrl: String = "",
 ) : LifecycleObserver {
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
+
+    // Property observers for identifiers
+    var userID: String
+        get() = _userID
+        set(value) {
+            _userID = value
+        }
+
+    var memberID: String
+        get() = _memberID
+        set(value) {
+            _memberID = value
+        }
+
+    var studentID: String
+        get() = _studentID
+        set(value) {
+            _studentID = value
+        }
+
+    var ticketmasterID: String
+        get() = _ticketmasterID
+        set(value) {
+            _ticketmasterID = value
+        }
+
+    var yinzid: String
+        get() = _yinzid
+        set(value) {
+            _yinzid = value
+        }
+
+    var pushNotificationToken: String
+        get() = _pushNotificationToken
+        set(value) {
+            _pushNotificationToken = value
+        }
+
+    var arbitraryIdentifiers: ObservableHashMap<String, String>
+        get() = _arbitraryIdentifiers
+        set(value) {
+            _arbitraryIdentifiers.clear()
+            _arbitraryIdentifiers.putAll(value)
+        }
+
+    init {
+        _arbitraryIdentifiers = ObservableHashMap { }
+    }
+
     lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
     lateinit var context: android.content.Context
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -103,6 +187,11 @@ class FanMakerSDK(
             headers.put("X-Fanmaker-Parameters", jsonParameters)
         }
 
+        if (this.fanMakerUserToken.isNotEmpty()) {
+            val jsonUserToken = Json.encodeToString(MapSerializer(String.serializer(), AnySerializer), this.fanMakerUserToken)
+            headers.put("X-Fanmaker-UserToken", jsonUserToken)
+        }
+
         val userToken = fanMakerSharedPreferences.getString("token", "")
         if (userToken != null && userToken != "") {
             headers.put("X-FanMaker-SessionToken", userToken)
@@ -118,25 +207,87 @@ class FanMakerSDK(
         return urlHost == "fanmaker" || urlHost == "fanmaker.com"
     }
 
+    fun loginUserFromParamsSync(onComplete: (Boolean) -> Unit) {
+        // Create a map with all user identifiers
+        val identifiers = HashMap<String, Any>()
+
+        // Add all the individual identifiers if they exist and are not empty
+        if (userID.isNotEmpty()) identifiers["user_id"] = userID
+        if (memberID.isNotEmpty()) identifiers["member_id"] = memberID
+        if (studentID.isNotEmpty()) identifiers["student_id"] = studentID
+        if (ticketmasterID.isNotEmpty()) identifiers["ticketmaster_id"] = ticketmasterID
+        if (yinzid.isNotEmpty()) identifiers["yinzid"] = yinzid
+
+        // Add the arbitrary identifiers if they exist and are not empty
+        if (arbitraryIdentifiers.isNotEmpty()) {
+            identifiers["fanmaker_identifiers"] = arbitraryIdentifiers
+        }
+
+        // If no identifiers are present or all values are empty, return false
+        if (identifiers.isEmpty() || identifiers.all { (_, value) -> 
+            when (value) {
+                is String -> value.isEmpty()
+                is Map<*, *> -> value.isEmpty()
+                else -> false
+            }
+        }) {
+            onComplete(false)
+            return
+        }
+
+        // Make the API request
+        val http = FanMakerSDKHttp(this, context, "")
+        http.post("site/auth/auto_login", identifiers,
+            { response ->
+                val status = response.getInt("status")
+                if (status == 200) {
+                    // If the response data is a JSONObject, set it as the user token
+                    if (response.has("data")) {
+                        val tokenData = response.getJSONObject("data")
+                        val tokenMap = HashMap<String, Any>()
+                        tokenData.keys().forEach { key ->
+                            tokenMap[key] = tokenData.get(key)
+                        }
+                        fanMakerUserToken = tokenMap
+                        onComplete(true)
+                    } else {
+                        onComplete(false)
+                    }
+                } else {
+                    onComplete(false)
+                }
+            },
+            { errorCode, errorMessage ->
+                onComplete(false)
+            }
+        )
+    }
+
     // This function will be used by the FanMakerSDKWebView and FanMakerSDKWebViewFragment
     // to determine which URL to open.
-    fun formatUrl(url: String? = ""): String {
+    fun formatUrl(url: String? = "", onUrlReady: (String) -> Unit) {
         val deepUrl = if(url != null && url.isNotEmpty()) url else this.deepLinkUrl
         if(deepUrl.isNotEmpty()) {
-            val urlComponents = Uri.parse(this.baseUrl)
-            val deepLinkComponents = Uri.parse(deepUrl)
-            val path = deepLinkComponents.path
-            val query = deepLinkComponents.query
+            // Try to login before formatting the URL
+            loginUserFromParamsSync { success ->
+                val urlComponents = Uri.parse(this.baseUrl)
+                val deepLinkComponents = Uri.parse(deepUrl)
+                val path = deepLinkComponents.path
+                val query = deepLinkComponents.query
 
-            val newUrl = Uri.parse(this.baseUrl).buildUpon()
-            path?.let { newUrl.appendEncodedPath(it) }
-            query?.let { newUrl.encodedQuery(it) }
+                val newUrl = Uri.parse(this.baseUrl).buildUpon()
+                path?.let { newUrl.appendEncodedPath(it) }
+                query?.let { newUrl.encodedQuery(it) }
 
-            this.deepLinkUrl = ""
+                this.deepLinkUrl = ""
 
-            return newUrl.toString()
+                onUrlReady(newUrl.toString())
+            }
         } else {
-            return this.baseUrl
+            // Try to login before returning the base URL
+            loginUserFromParamsSync { success ->
+                onUrlReady(this.baseUrl)
+            }
         }
     }
 

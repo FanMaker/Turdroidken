@@ -12,9 +12,11 @@ import android.webkit.JavascriptInterface
 import android.widget.EditText
 import androidx.core.content.ContextCompat
 import org.json.JSONObject
-
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
+import kotlin.reflect.KVisibility
+import kotlin.reflect.full.memberProperties
 
 class FanMakerSDKWebInterface(
     private val mContext: Context,
@@ -104,15 +106,14 @@ class FanMakerSDKWebInterface(
 
         if (data.has("arbitrary_identifiers")) {
             val arbitraryIdentifiersJson = data.getJSONObject("arbitrary_identifiers")
-            val arbitraryIdentifiers: HashMap<String, String> =
-                jsonObjectToHashMap(arbitraryIdentifiersJson)
-            fanMakerSDK.arbitraryIdentifiers = arbitraryIdentifiers
+            val arbitraryIdentifiers: HashMap<String, String> = jsonObjectToHashMap(arbitraryIdentifiersJson)
+            fanMakerSDK.arbitraryIdentifiers.clear()
+            fanMakerSDK.arbitraryIdentifiers.putAll(arbitraryIdentifiers)
         }
 
         if (data.has("fanmaker_parameters")) {
             val fanMakerParametersJson = data.getJSONObject("fanmaker_parameters")
-            val fanMakerParameters: HashMap<String, Any> =
-                jsonObjectToAnyHashMap(fanMakerParametersJson)
+            val fanMakerParameters: HashMap<String, Any> = jsonObjectToAnyHashMap(fanMakerParametersJson)
             fanMakerSDK.fanMakerParameters = fanMakerParameters
         }
     }
@@ -135,6 +136,174 @@ class FanMakerSDKWebInterface(
         } catch(ex: SecurityException) {
             Log.e("FANMAKER", "Location services not enabled")
             this.onRequestLocationAuthorization(false)
+        }
+    }
+
+    @JavascriptInterface
+    fun jsonValueForKey(key: String): String {
+        return when (key) {
+            "fanmakerIdentifierLexicon" -> {
+                val identifiers = mapOf(
+                    "user_id" to fanMakerSDK.userID,
+                    "member_id" to fanMakerSDK.memberID,
+                    "student_id" to fanMakerSDK.studentID,
+                    "ticketmaster_id" to fanMakerSDK.ticketmasterID,
+                    "yinzid" to fanMakerSDK.yinzid,
+                    "push_token" to fanMakerSDK.pushNotificationToken,
+                    "arbitrary_identifiers" to fanMakerSDK.arbitraryIdentifiers
+                )
+                val jsonString = JSONObject(identifiers).toString()
+                val escapedJson = jsonString.replace("\"", "\\\"")
+                "FanmakerSDKCallback(\"$escapedJson\")"
+            }
+            "fanmakerParametersLexicon" -> {
+                val jsonString = JSONObject(fanMakerSDK.fanMakerParameters as Map<Any?, Any?>).toString()
+                val escapedJson = jsonString.replace("\"", "\\\"")
+                "FanmakerSDKCallback(\"$escapedJson\")"
+            }
+            "fanmakerUserToken" -> {
+                val jsonString = JSONObject(fanMakerSDK.fanMakerUserToken as Map<Any?, Any?>).toString()
+                val escapedJson = jsonString.replace("\"", "\\\"")
+                "FanmakerSDKCallback(\"$escapedJson\")"
+            }
+            "locationEnabled" -> {
+                val isEnabled = locationManager?.isProviderEnabled(LocationManager.GPS_PROVIDER) ?: false
+                val escapedValue = isEnabled.toString().replace("\"", "\\\"")
+                "FanmakerSDKCallback(\"{ \\\"value\\\": \\\"$escapedValue\\\" }\")"
+            }
+            else -> {
+                // For unknown keys, return empty JSON object
+                "{}"
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun fetchJSONValue(value: String) {
+        when (value) {
+            "locationServicesEnabled" -> {
+                val locationManager = mContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+                val authorizationStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContextCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION)
+                } else {
+                    @Suppress("DEPRECATION")
+                    ContextCompat.checkSelfPermission(mContext, Manifest.permission.ACCESS_FINE_LOCATION)
+                }
+
+                val status = when (authorizationStatus) {
+                    PackageManager.PERMISSION_GRANTED -> {
+                        if (locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+                            "Always"
+                        } else {
+                            "When In Use"
+                        }
+                    }
+                    PackageManager.PERMISSION_DENIED -> "Denied"
+                    else -> "Not Determined"
+                }
+
+                val escapedValue = status.replace("\"", "\\\"")
+                val jsString = "FanmakerSDKCallback(\"{ \\\"value\\\": \\\"$escapedValue\\\" }\")"
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $jsString
+                        """.trimIndent(), null)
+                    }
+                }
+            }
+            "locationEnabled" -> {
+                val result = jsonValueForKey("locationEnabled")
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $result
+                        """.trimIndent(), null)
+                    }
+                }
+            }
+            "identifiers" -> {
+                val result = jsonValueForKey("fanmakerIdentifierLexicon")
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $result
+                        """.trimIndent(), null)
+                    }
+                }
+            }
+            "params" -> {
+                val result = jsonValueForKey("fanmakerParametersLexicon")
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $result
+                        """.trimIndent(), null)
+                    }
+                }
+            }
+            "userToken" -> {
+                val result = jsonValueForKey("fanmakerUserToken")
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $result
+                        """.trimIndent(), null)
+                    }
+                }
+            }
+            else -> {
+                val result = jsonValueForKey(value)
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $result
+                        """.trimIndent(), null)
+                    }
+                }
+            }
         }
     }
 

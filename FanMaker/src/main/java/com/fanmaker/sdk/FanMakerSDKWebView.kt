@@ -138,6 +138,16 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 loadingAnimationFrame.visibility = FrameLayout.GONE
                 animationDrawable.stop()
             }
+
+            override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                super.onReceivedError(view, request, error)
+                Log.e("FANMAKER", "WebView error: ${error?.description} for URL: ${request?.url}")
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                Log.w("FANMAKER", "Loading URL: ${request?.url}")
+                return super.shouldOverrideUrlLoading(view, request)
+            }
         }
 
         webView.webChromeClient = WebChromeClient()
@@ -239,7 +249,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.addJavascriptInterface(jsInterface, "fanmaker")
 
         val queue = Volley.newRequestQueue(this)
-        val url = "https://api3.fanmaker.com/api/v3/site_details/sdk"
+        val url = "${FanMakerSDKHttpRequest.URL}/site_details/sdk"
 
         val request = object: JsonObjectRequest(Request.Method.GET, url, null,
             { response ->
@@ -249,13 +259,15 @@ class FanMakerSDKWebView : AppCompatActivity() {
                     val sdk_url = data.getString("url")
                     fanMakerSDK!!.updateBaseUrl(sdk_url)
 
-                    val formattedUrl = fanMakerSDK!!.formatUrl()
-                    webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
+                    fanMakerSDK!!.formatUrl { formattedUrl ->
+                        webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
+                    }
                 } else {
                     webView.loadUrl("https://admin.fanmaker.com/500")
                 }
             },
             { error ->
+                Log.w("FANMAKER", "ERROR: $error")
                 webView.loadUrl("https://admin.fanmaker.com/500")
             }
         ) {
