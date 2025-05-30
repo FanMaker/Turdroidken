@@ -189,7 +189,7 @@ class FanMakerSDK(
 
         if (this.fanMakerUserToken.isNotEmpty()) {
             val jsonUserToken = Json.encodeToString(MapSerializer(String.serializer(), AnySerializer), this.fanMakerUserToken)
-            headers.put("X-Fanmaker-UserToken", jsonUserToken)
+            headers.put("X-Fanmaker-User-Token", jsonUserToken)
         }
 
         val userToken = fanMakerSharedPreferences.getString("token", "")
