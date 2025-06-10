@@ -66,7 +66,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "2.0.5",
+    var version: String = "3.0.0",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
