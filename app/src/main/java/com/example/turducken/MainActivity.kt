@@ -10,6 +10,10 @@ import android.os.Bundle
 import android.util.Log
 import android.view.View
 import android.widget.EditText
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.updatePadding
 import com.fanmaker.sdk.FanMakerSDK
 import com.fanmaker.sdk.FanMakerSDKs
 import com.fanmaker.sdk.FanMakerSDKBeaconManager
@@ -40,8 +44,8 @@ class MainActivity : AppCompatActivity() {
         // that you can access by their unique key to insure availability across your app.
 
         // The first parameter is the context, the second is the key you will use to access the instance, and the third is the API key for the instance.
-         FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
-         FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
+        FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
+        FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
 
         // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
         fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey1")
@@ -81,15 +85,39 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Enable edge-to-edge display
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        
         setContentView(R.layout.activity_main)
+
+        // Set up window insets handling
+        setupWindowInsets()
 
         // Initializes the FanMakerSDKs, but you can initialize them wherever you want to start the SDK.
         fanMakerStart(intent)
     }
 
+    private fun setupWindowInsets() {
+        val rootView = findViewById<View>(R.id.main_container)
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            
+            // Apply top padding for status bar, but allow content to scroll behind it
+            view.updatePadding(
+                top = insets.top,
+                left = insets.left,
+                right = insets.right,
+                bottom = insets.bottom
+            )
+            
+            WindowInsetsCompat.CONSUMED
+        }
+    }
+
     // Assuming your application uses the android:launchMode="singleTask" attribute in the AndroidManifest.xml file
     // this method will be called when the app is already running and a new intent is received. Which is useful for deep linking.
-    override fun onNewIntent(intent: Intent?) {
+    override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
 
@@ -114,7 +142,7 @@ class MainActivity : AppCompatActivity() {
         if (pushToken != "") fanMakerSDK1?.pushNotificationToken = pushToken
 
         fanMakerSDK1!!.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
-        // fanMakerSDK1!!.fanMakerParameters["hide_menu"] = true
+        fanMakerSDK1!!.fanMakerParameters["hide_menu"] = false
     }
 
     fun openFanMakerSDKWebView(view: View) {

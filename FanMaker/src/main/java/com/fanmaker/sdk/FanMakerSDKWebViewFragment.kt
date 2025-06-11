@@ -23,6 +23,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -108,6 +111,23 @@ class FanMakerSDKWebViewFragment : Fragment() {
         backgroundHandlerThread.join()
     }
 
+    private fun setupWindowInsets() {
+        val rootView = viewBinding.root
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            
+            // Apply padding for system bars to the main container, allowing WebView to extend behind them
+            view.updatePadding(
+                top = insets.top,
+                left = insets.left,
+                right = insets.right,
+                bottom = insets.bottom
+            )
+            
+            WindowInsetsCompat.CONSUMED
+        }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         _viewBinding = FanmakerSdkWebviewFragmentBinding.inflate(inflater, container, false)
 
@@ -118,6 +138,12 @@ class FanMakerSDKWebViewFragment : Fragment() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = viewBinding.root.findViewById<WebView>(R.id.fanmaker_sdk_webview)
+        
+        // Enable WebView debugging for Chrome DevTools
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            WebView.setWebContentsDebuggingEnabled(true)
+        }
+        
         webView.webChromeClient = WebChromeClient()
         val intent = Intent(Intent.ACTION_GET_CONTENT)
 
@@ -160,6 +186,9 @@ class FanMakerSDKWebViewFragment : Fragment() {
         webView.settings.domStorageEnabled = true
         webView.settings.allowContentAccess = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
+        
+        // Allow mixed content for Charles Proxy debugging
+        webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
         // if(!isPermissionGranted()) { askPermissions() }
 
@@ -284,6 +313,9 @@ class FanMakerSDKWebViewFragment : Fragment() {
             }
         }
         queue.add(request)
+
+        // Set up window insets handling for the fragment
+        setupWindowInsets()
 
         return viewBinding.root
     }
