@@ -180,6 +180,7 @@ class FanMakerSDKWebInterface(
 
     @JavascriptInterface
     fun fetchJSONValue(value: String) {
+        Log.w("FANMAKER", "FETCHING JSON VALUE: $value")
         when (value) {
             "locationServicesEnabled" -> {
                 val locationManager = mContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
