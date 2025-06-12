@@ -140,9 +140,9 @@ class FanMakerSDKWebViewFragment : Fragment() {
         val webView = viewBinding.root.findViewById<WebView>(R.id.fanmaker_sdk_webview)
         
         // Enable WebView debugging for Chrome DevTools
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        //     WebView.setWebContentsDebuggingEnabled(true)
+        // }
         
         webView.webChromeClient = WebChromeClient()
         val intent = Intent(Intent.ACTION_GET_CONTENT)
@@ -186,9 +186,6 @@ class FanMakerSDKWebViewFragment : Fragment() {
         webView.settings.domStorageEnabled = true
         webView.settings.allowContentAccess = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
-        
-        // Allow mixed content for Charles Proxy debugging
-        webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
         // if(!isPermissionGranted()) { askPermissions() }
 

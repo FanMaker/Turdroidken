@@ -150,9 +150,9 @@ class FanMakerSDKWebView : AppCompatActivity() {
         val webView = findViewById<WebView>(R.id.fanmaker_sdk_webview)
         
         // Enable WebView debugging for Chrome DevTools
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
-            WebView.setWebContentsDebuggingEnabled(true)
-        }
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        //     WebView.setWebContentsDebuggingEnabled(true)
+        // }
         
         if(fanMakerSDK.useDarkLoadingScreen) {
             loadingAnimationFrame = findViewById<FrameLayout>(R.id.fanmaker_sdk_dark_loading_frame)
