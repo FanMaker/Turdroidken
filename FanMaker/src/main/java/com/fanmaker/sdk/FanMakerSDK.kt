@@ -9,8 +9,8 @@ import kotlinx.parcelize.Parcelize
 
 // On Resume/Open
 import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleObserver
-import androidx.lifecycle.OnLifecycleEvent
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
 
 // Shared Preferences
 import android.content.Context
@@ -25,6 +25,7 @@ import android.location.Location
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
 
 // Deep Linking
 import android.net.Uri
@@ -66,7 +67,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "3.1.1-rc.1",
+    var version: String = "3.1.1",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
@@ -82,7 +83,7 @@ class FanMakerSDK(
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",
     var deepLinkUrl: String = "",
-) : LifecycleObserver {
+) : DefaultLifecycleObserver {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
@@ -203,7 +204,7 @@ class FanMakerSDK(
     }
 
     fun canOpenUrl(url: String): Boolean {
-        val urlHost = Uri.parse(url).host?.toLowerCase()
+        val urlHost = Uri.parse(url).host?.lowercase()
         return urlHost == "fanmaker" || urlHost == "fanmaker.com"
     }
 
@@ -303,8 +304,8 @@ class FanMakerSDK(
 
     // This function is called when the app is resumed assuming we have a lifecycle observer
     // established in the main activity.
-    @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
-    fun onResume() {
+    // @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
+    override fun onResume(owner: LifecycleOwner) {
         // Send app event
         val appAction = if (this.firstLaunch) "app_launch" else "app_resume"
         sendAppEvent(appAction)
@@ -337,10 +338,10 @@ class FanMakerSDK(
             val userToken = fanMakerSharedPreferences.getString("token", "")
             if (userToken!!.isNotEmpty()) {
                 // Request location updates
-                val locationRequest = LocationRequest.create()?.apply {
-                    priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-                    maxWaitTime = 10000
-                }
+                @Suppress("DEPRECATION")
+                val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
+                    .setMaxUpdateDelayMillis(10000)
+                    .build()
 
                 locationRequest?.let {
                     fusedLocationClient.getCurrentLocation(it.priority, null)

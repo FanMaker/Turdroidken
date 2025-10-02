@@ -16,3 +16,4 @@
 local.properties
 github.properties
 /.vscode/*
+.github/instructions/.*

@@ -129,12 +129,19 @@ class FanMakerSDKWebInterface(
     @JavascriptInterface
     fun updateLocation() {
         Log.w("FANMAKER", "LOCATION REQUESTED")
-        locationManager = this.mContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager?
-
-        try {
-            locationManager?.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 0L, 0f, locationListener)
-        } catch(ex: SecurityException) {
-            Log.e("FANMAKER", "Location services not enabled")
+        val permission = Manifest.permission.ACCESS_FINE_LOCATION
+        val status = ContextCompat.checkSelfPermission(mContext, permission)
+        if (status == PackageManager.PERMISSION_GRANTED) {
+            val locationRequest = com.google.android.gms.location.LocationRequest.Builder(
+                com.google.android.gms.location.Priority.PRIORITY_HIGH_ACCURACY, 10000L
+            ).build()
+            fusedLocationClient.requestLocationUpdates(
+                locationRequest,
+                locationCallback,
+                android.os.Looper.getMainLooper()
+            )
+        } else {
+            Log.e("FANMAKER", "Location permission not granted")
             this.onRequestLocationAuthorization(false)
         }
     }
@@ -308,12 +315,19 @@ class FanMakerSDKWebInterface(
         }
     }
 
-    private val locationListener: LocationListener = object : LocationListener {
-        override fun onLocationChanged(location: Location) {
-            onUpdateLocation(location)
+    // Modern location updates using FusedLocationProviderClient
+    private val fusedLocationClient by lazy {
+        com.google.android.gms.location.LocationServices.getFusedLocationProviderClient(mContext)
+    }
+
+    private val locationCallback = object : com.google.android.gms.location.LocationCallback() {
+        override fun onLocationResult(locationResult: com.google.android.gms.location.LocationResult) {
+            for (location in locationResult.locations) {
+                onUpdateLocation(location)
+            }
         }
-        override fun onStatusChanged(provider: String, status: Int, extras: Bundle) {}
-        override fun onProviderEnabled(provider: String) {}
-        override fun onProviderDisabled(provider: String) {}
+        override fun onLocationAvailability(locationAvailability: com.google.android.gms.location.LocationAvailability) {
+            // Optionally handle provider enabled/disabled
+        }
     }
 }

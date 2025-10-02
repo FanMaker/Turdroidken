@@ -5,7 +5,7 @@
     <files-path
         name="dev"
         path="/data/user/0/${packageName}/files/" />
-    <cache-path
+    <external-cache-path
         name="external_cache"
         path="." />
     <files-path
