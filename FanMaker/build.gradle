@@ -2,16 +2,16 @@ plugins {
     id 'com.android.library'
     id 'kotlin-android'
     id 'kotlin-parcelize'
+    id 'maven-publish'
 }
 
 android {
-    compileSdkVersion 33
+    namespace 'com.fanmaker.sdk'
+    compileSdk 35
 
     defaultConfig {
-        minSdkVersion 24
-        targetSdkVersion 33
-        versionCode 1
-        versionName "2.0.5"
+        minSdk 24
+        targetSdk 35
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         consumerProguardFiles "consumer-rules.pro"
@@ -24,51 +24,60 @@ android {
         }
     }
     compileOptions {
-        sourceCompatibility JavaVersion.VERSION_1_8
-        targetCompatibility JavaVersion.VERSION_1_8
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
     }
     kotlinOptions {
-        jvmTarget = '1.8'
+        jvmTarget = '17'
     }
     buildFeatures {
-        viewBinding true
+        viewBinding = true
+    }
+
+    publishing {
+        singleVariant("release") {
+            withSourcesJar()
+        }
     }
 }
 
 dependencies {
-    def camerax_version = "1.1.0-beta03"
+    def camerax_version = "1.5.0"
     implementation "androidx.camera:camera-core:${camerax_version}"
     implementation "androidx.camera:camera-camera2:${camerax_version}"
     implementation "androidx.camera:camera-lifecycle:${camerax_version}"
     implementation "androidx.camera:camera-video:${camerax_version}"
-
     implementation "androidx.camera:camera-view:${camerax_version}"
     implementation "androidx.camera:camera-extensions:${camerax_version}"
 
     implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     implementation "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
-    implementation 'androidx.core:core-ktx:1.5.0'
-    implementation 'androidx.appcompat:appcompat:1.3.0'
-    implementation 'com.google.android.material:material:1.3.0'
-    implementation 'com.android.volley:volley:1.2.0'
-    testImplementation 'junit:junit:4.+'
-    androidTestImplementation 'androidx.test.ext:junit:1.1.2'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
-    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.3.0"
-    implementation 'com.google.android.gms:play-services-base:18.1.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.appcompat:appcompat:1.7.0'
+    implementation 'com.google.android.material:material:1.12.0'
+    implementation 'com.android.volley:volley:1.2.1'
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+    implementation "org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.0"
+    implementation 'com.google.android.gms:play-services-base:18.5.0'
 
-    implementation 'org.altbeacon:android-beacon-library:2.19.3'
-    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.2.0"
-    implementation 'com.google.android.gms:play-services-location:21.0.1'
+    implementation 'org.altbeacon:android-beacon-library:2.19.6'
+    implementation "androidx.lifecycle:lifecycle-runtime-ktx:2.8.0"
+    implementation 'com.google.android.gms:play-services-location:21.3.0'
+
+    // Compose BOM 2024.12.01 is fully available!
+    implementation platform('androidx.compose:compose-bom:2024.12.01')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.activity:activity-compose:1.9.0'
 }
-
-apply plugin: 'maven-publish'
 
 def githubProperties = new Properties()
 githubProperties.load(new FileInputStream(rootProject.file("github.properties")))
 
 def getVersionName = { ->
-    return "2.0.5"
+    return "3.1.1"
 }
 
 def getArtifactId = { ->
@@ -77,19 +86,13 @@ def getArtifactId = { ->
 
 publishing {
     publications {
-        bar(MavenPublication) {
+        release(MavenPublication) {
             groupId 'com.fanmaker.sdk'
             artifactId getArtifactId()
             version getVersionName()
-            artifact("$buildDir/outputs/aar/${getArtifactId()}-release.aar")
-            pom.withXml {
-                def dependencies = asNode().appendNode('dependencies')
-                configurations.getByName("releaseCompileClasspath").getResolvedConfiguration().getFirstLevelModuleDependencies().each {
-                    def dependency = dependencies.appendNode('dependency')
-                    dependency.appendNode('groupId', it.moduleGroup)
-                    dependency.appendNode('artifactId', it.moduleName)
-                    dependency.appendNode('version', it.moduleVersion)
-                }
+
+            afterEvaluate {
+                from components.release
             }
         }
     }
@@ -106,3 +109,5 @@ publishing {
         }
     }
 }
+
+

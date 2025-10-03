@@ -14,7 +14,6 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.*
 import android.content.pm.PackageManager
-import android.hardware.Camera
 import android.net.Uri
 import android.provider.MediaStore
 import android.webkit.*
@@ -23,6 +22,9 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.updatePadding
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
@@ -59,6 +61,9 @@ import java.io.FileOutputStream
 import com.fanmaker.sdk.FanMakerSDKs
 
 class FanMakerSDKWebViewFragment : Fragment() {
+    // Activity Result Launchers for file chooser and image picker
+    private lateinit var fileChooserLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
+    private lateinit var imagePickerLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest>
     private lateinit var fanMakerSDK: FanMakerSDK
     private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
     lateinit var animationDrawable: AnimationDrawable
@@ -69,17 +74,14 @@ class FanMakerSDKWebViewFragment : Fragment() {
     private val viewBinding get() = _viewBinding!!
 
     private val permission = arrayOf(
-        Manifest.permission.CAMERA,
-        Manifest.permission.WRITE_EXTERNAL_STORAGE,
-        Manifest.permission.READ_EXTERNAL_STORAGE,
-
+        Manifest.permission.CAMERA
     )
     private val MEDIA_RESULTCODE = 1
     private val PERMISSION_RESULTCODE = 2
     private val REQUEST_SELECT_FILE = 100
     private val REQUEST_IMAGE_CAPTURE = 1
     private val FILENAME_FORMAT = "yyyyMMdd-HHmmssSSS"
-    private var cameraId = 1
+    private var lensFacing = CameraSelector.LENS_FACING_FRONT
 
     private var mUploadMessage: ValueCallback<Uri>? = null
     private var uploadMessage: ValueCallback<Array<Uri>>? = null
@@ -90,7 +92,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
     private lateinit var backgroundHandlerThread: HandlerThread
     private lateinit var backgroundHandler: android.os.Handler
 
-    private lateinit var fanMakerCameraProvider: ProcessCameraProvider
+    private var fanMakerCameraProvider: ProcessCameraProvider? = null
 
     private var camPermissionMethod: String? = null
     private var fanMakerFileChooserParams: WebChromeClient.FileChooserParams? = null
@@ -108,7 +110,46 @@ class FanMakerSDKWebViewFragment : Fragment() {
         backgroundHandlerThread.join()
     }
 
+    private fun setupWindowInsets() {
+        val rootView = viewBinding.root
+        ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, windowInsets ->
+            val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
+            
+            // Apply padding for system bars to the main container, allowing WebView to extend behind them
+            view.updatePadding(
+                top = insets.top,
+                left = insets.left,
+                right = insets.right,
+                bottom = insets.bottom
+            )
+            
+            WindowInsetsCompat.CONSUMED
+        }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        // Register ActivityResultLauncher for file chooser
+        fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+            if (result.resultCode == Activity.RESULT_OK) {
+                val data: Intent? = result.data
+                val results: Array<Uri>? = when {
+                    data != null && data.clipData != null -> Array(data.clipData!!.itemCount) { i -> data.clipData!!.getItemAt(i).uri }
+                    data != null && data.data != null -> arrayOf(data.data!!)
+                    else -> null
+                }
+                uploadMessage?.onReceiveValue(results)
+            } else {
+                uploadMessage?.onReceiveValue(null)
+            }
+            uploadMessage = null
+        }
+
+        // Register ActivityResultLauncher for image picker (gallery)
+        imagePickerLauncher = registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            val results: Array<Uri>? = if (uri != null) arrayOf(uri) else null
+            uploadMessage?.onReceiveValue(results)
+            uploadMessage = null
+        }
         _viewBinding = FanmakerSdkWebviewFragmentBinding.inflate(inflater, container, false)
 
         viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
@@ -118,6 +159,12 @@ class FanMakerSDKWebViewFragment : Fragment() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = viewBinding.root.findViewById<WebView>(R.id.fanmaker_sdk_webview)
+        
+        // Enable WebView debugging for Chrome DevTools
+        // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+        //     WebView.setWebContentsDebuggingEnabled(true)
+        // }
+        
         webView.webChromeClient = WebChromeClient()
         val intent = Intent(Intent.ACTION_GET_CONTENT)
 
@@ -173,7 +220,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
                 val intent = Intent(Intent.ACTION_GET_CONTENT)
                 intent.addCategory(Intent.CATEGORY_OPENABLE)
                 intent.type = "*/*"
-                startActivityForResult(Intent.createChooser(intent, "File Chooser"), MEDIA_RESULTCODE)
+                fileChooserLauncher.launch(Intent.createChooser(intent, "File Chooser"))
             }
 
             private val cameraStateCallback = object : CameraDevice.StateCallback() {
@@ -198,19 +245,28 @@ class FanMakerSDKWebViewFragment : Fragment() {
 
             private fun selectImage(fileChooserParams: FileChooserParams?) {
                 val dialogBuilder = AlertDialog.Builder(context)
-
-                dialogBuilder.setTitle("Please Select:")
-                dialogBuilder.setCancelable(false)
-                dialogBuilder.setPositiveButton("Camera", DialogInterface.OnClickListener { dialog, id ->
-                    startCamera()
-                    dialog.cancel()
-                })
-                dialogBuilder.setNegativeButton("Gallery", DialogInterface.OnClickListener { dialog, id ->
-                    openPicker(fileChooserParams)
-                    dialog.cancel()
-                })
-
-                var alert = dialogBuilder.create()
+                dialogBuilder.setTitle("Choose Source")
+                dialogBuilder.setCancelable(true)
+                dialogBuilder.setItems(arrayOf("Camera", "Gallery")) { dialog, which ->
+                    when (which) {
+                        0 -> {
+                            // Camera selected, check permission first
+                            camPermissionMethod = "startCamera"
+                            if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                                startCamera()
+                            } else {
+                                askPermissions()
+                            }
+                        }
+                        1 -> {
+                            // Gallery selected, no permission required for PickVisualMedia
+                            camPermissionMethod = null
+                            openPicker()
+                        }
+                    }
+                    dialog.dismiss()
+                }
+                val alert = dialogBuilder.create()
                 alert.show()
             }
 
@@ -285,6 +341,9 @@ class FanMakerSDKWebViewFragment : Fragment() {
         }
         queue.add(request)
 
+        // Set up window insets handling for the fragment
+        setupWindowInsets()
+
         return viewBinding.root
     }
 
@@ -298,60 +357,88 @@ class FanMakerSDKWebViewFragment : Fragment() {
         alert.show()
     }
 
-    private fun openPicker(fileChooserParams: WebChromeClient.FileChooserParams?) {
-        val intent = Intent(Intent.ACTION_PICK)
-        intent.type = "image/*"
-        startActivityForResult(intent, REQUEST_SELECT_FILE)
+    private fun openPicker() {
+        imagePickerLauncher.launch(androidx.activity.result.PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
     }
 
     private fun launchCamera() {
-        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE)
-        // We are trying to open the front camera, but it may not be available
-        intent.putExtra("android.intent.extras.CAMERA_FACING", android.hardware.Camera.CameraInfo.CAMERA_FACING_FRONT)  // for API < 21
-        intent.putExtra("android.intent.extras.LENS_FACING_FRONT", 1)  // for API >= 21
-        intent.putExtra("android.intent.extra.USE_FRONT_CAMERA", true)
-        startActivityForResult(intent, REQUEST_IMAGE_CAPTURE)
+        // Show overlay
+        viewBinding.viewFinder.visibility = View.VISIBLE
+        viewBinding.imageCaptureButton.visibility = View.VISIBLE
+        viewBinding.closeCameraButton.visibility = View.VISIBLE
+        viewBinding.switchCameraButton.visibility = View.VISIBLE
+
+        val cameraProviderFuture = ProcessCameraProvider.getInstance(requireContext())
+        cameraProviderFuture.addListener({
+            val cameraProvider = cameraProviderFuture.get()
+            fanMakerCameraProvider = cameraProvider
+            val preview = Preview.Builder().build()
+            val imageCapture = ImageCapture.Builder().build()
+            this.imageCapture = imageCapture
+            val cameraSelector = CameraSelector.Builder()
+                .requireLensFacing(lensFacing)
+                .build()
+
+            preview.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+            cameraProvider.unbindAll()
+            try {
+                val camera = cameraProvider.bindToLifecycle(
+                    this,
+                    cameraSelector,
+                    preview,
+                    imageCapture
+                )
+                Log.d("CameraX", "Camera bound, lensFacing: $lensFacing")
+            } catch (e: Exception) {
+                Log.e("CameraX", "Failed to bind camera: ${e.message}", e)
+            }
+        }, ContextCompat.getMainExecutor(requireContext()))
     }
 
     private fun startCamera() {
+        // Only request camera permission when user selects Camera
         if (ActivityCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
             launchCamera()
         } else {
-            // Permission is not granted, request it
-            ActivityCompat.requestPermissions(requireActivity(), arrayOf(Manifest.permission.CAMERA), REQUEST_IMAGE_CAPTURE)
+            // Use ActivityResult API for permissions for consistency and privacy
+            camPermissionMethod = "startCamera"
+            permReqLauncher.launch(arrayOf(Manifest.permission.CAMERA))
         }
     }
 
-    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_IMAGE_CAPTURE) {
-            if (grantResults.isNotEmpty() && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // Permission was granted
-                launchCamera()
-            } else {
-                genericAlert("Please make sure the app has access to your Camera to use this feature.")
-                uploadMessage?.onReceiveValue(null)
-                uploadMessage = null
-            }
-        }
-    }
+    // Remove legacy onRequestPermissionsResult for camera, use permReqLauncher instead
     private fun bindCameraUseCases() {
-        var cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-        if(cameraId != 1) { cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA }
+        val cameraSelector = CameraSelector.Builder()
+            .requireLensFacing(lensFacing)
+            .build()
 
-        var rotation = resources.configuration.orientation;
+        val rotation = resources.configuration.orientation
 
-        var height: Int
-        var width: Int
+        val height: Int
+        val width: Int
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            var currentMetrics = requireContext().getSystemService(WindowManager::class.java).currentWindowMetrics
+            val currentMetrics = requireContext().getSystemService(WindowManager::class.java).currentWindowMetrics
             height = currentMetrics.bounds.height()
             width = currentMetrics.bounds.width()
         } else {
-//            val metrics = DisplayMetrics();
-            val display = requireActivity().windowManager.defaultDisplay
-            height = display.height
-            width = display.width
+            val display = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                requireActivity().display
+            } else {
+                @Suppress("DEPRECATION")
+                requireActivity().windowManager.defaultDisplay
+            }
+            val size = android.graphics.Point()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val windowMetrics = requireContext().getSystemService(WindowManager::class.java).currentWindowMetrics
+                val bounds = windowMetrics.bounds
+                height = bounds.height()
+                width = bounds.width()
+            } else {
+                @Suppress("DEPRECATION")
+                display?.getSize(size)
+                height = size.y
+                width = size.x
+            }
         }
 
         val screenAspectRatio = aspectRatio(width, height)
@@ -368,15 +455,15 @@ class FanMakerSDKWebViewFragment : Fragment() {
             .build()
 
         try {
-            fanMakerCameraProvider.unbindAll()
+            fanMakerCameraProvider?.unbindAll()
 
-            viewBinding.viewFinder.setVisibility(View.VISIBLE)
-            viewBinding.closeCameraButton.setVisibility(View.VISIBLE)
-            viewBinding.imageCaptureButton.setVisibility(View.VISIBLE)
-            viewBinding.switchCameraButton.setVisibility(View.VISIBLE)
+            viewBinding.viewFinder.visibility = View.VISIBLE
+            viewBinding.closeCameraButton.visibility = View.VISIBLE
+            viewBinding.imageCaptureButton.visibility = View.VISIBLE
+            viewBinding.switchCameraButton.visibility = View.VISIBLE
 
-            fanMakerCameraProvider.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview, imageCapture)
-            preview?.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
+            fanMakerCameraProvider?.bindToLifecycle(this as LifecycleOwner, cameraSelector, preview, imageCapture)
+            preview.setSurfaceProvider(viewBinding.viewFinder.surfaceProvider)
         } catch(exc: Exception) {
             Log.e("START CAMERA EXCEPTION", "BINDING FAILED", exc)
         }
@@ -394,18 +481,23 @@ class FanMakerSDKWebViewFragment : Fragment() {
     }
 
     private fun closeCamera() {
-        viewBinding.viewFinder.setVisibility(View.GONE)
-        viewBinding.closeCameraButton.setVisibility(View.GONE)
-        viewBinding.imageCaptureButton.setVisibility(View.GONE)
-        viewBinding.switchCameraButton.setVisibility(View.GONE)
-        fanMakerCameraProvider.unbindAll()
-        uploadMessage?.onReceiveValue(null)
-        uploadMessage = null
+    viewBinding.viewFinder.setVisibility(View.GONE)
+    viewBinding.closeCameraButton.setVisibility(View.GONE)
+    viewBinding.imageCaptureButton.setVisibility(View.GONE)
+    viewBinding.switchCameraButton.setVisibility(View.GONE)
+    fanMakerCameraProvider?.unbindAll()
+    uploadMessage?.onReceiveValue(null)
+    uploadMessage = null
     }
 
     private fun flipCamera() {
-        cameraId = if(cameraId == 1) 0 else 1;
-        startCamera()
+        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+            CameraSelector.LENS_FACING_BACK
+        } else {
+            CameraSelector.LENS_FACING_FRONT
+        }
+        Log.d("CameraX", "flipCamera called, new lensFacing: $lensFacing")
+        launchCamera()
     }
 
     private fun takePhoto() {
@@ -450,7 +542,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         val granted = permissions.entries.all { it.value == true }
         if (granted) {
             if(camPermissionMethod == "startCamera") { startCamera() }
-            else if(camPermissionMethod == "openPicker") { openPicker(fanMakerFileChooserParams) }
+            else if(camPermissionMethod == "openPicker") { openPicker() }
             camPermissionMethod = null
         } else {
             camPermissionMethod = null
@@ -492,28 +584,8 @@ class FanMakerSDKWebViewFragment : Fragment() {
         return Uri.fromFile(imageFile)
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data);
-        if(requestCode == REQUEST_SELECT_FILE) {
-            if (uploadMessage == null)
-                return
-            var results: Array<Uri>? = WebChromeClient.FileChooserParams.parseResult(resultCode, data)
-            uploadMessage?.onReceiveValue(results)
-            uploadMessage = null
-        } else if (requestCode == REQUEST_IMAGE_CAPTURE) {
-            if (data?.extras?.get("data") == null) {
-                uploadMessage?.onReceiveValue(null)
-                uploadMessage = null
-                return
-            }
-
-            val imageBitmap = data?.extras?.get("data") as Bitmap
-            val uri = getImageUri(requireContext(), imageBitmap)
-            val results: Array<Uri>? = arrayOf(uri)
-            uploadMessage?.onReceiveValue(results)
-            uploadMessage = null
-        }
-    }
+    // Remove deprecated Camera onActivityResult logic
+    // CameraX handles image capture via takePhoto()
 
     override fun onDestroy() {
         super.onDestroy()
