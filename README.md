@@ -338,6 +338,84 @@ fun openFanMakerSDKWebViewFragment(view: View) {
     }
 ```
 
+### Closing the SDK from Web Content
+
+The FanMaker SDK provides a `triggerAction()` JavaScript method that allows web content to trigger actions in the host app, such as closing the SDK. This is useful for implementing custom close buttons or programmatic dismissal from your web content.
+
+#### Setting Up the Close Action Handler
+
+In your `MainActivity` (or wherever you initialize your SDK instances), set up the `onActionTriggered` callback to handle the "close" action:
+
+```
+import com.fanmaker.sdk.ActivityTracker
+import com.fanmaker.sdk.FanMakerSDKWebView
+
+class MainActivity : AppCompatActivity() {
+    var fanMakerSDK1: FanMakerSDK? = null
+    var fanMakerSDK2: FanMakerSDK? = null
+
+    lateinit var fanmakerIntent1: Intent
+    lateinit var fanmakerIntent2: Intent
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContentView(R.layout.activity_main)
+
+        // Initialize SDK instances
+        FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
+        FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
+
+        fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey1")
+        fanMakerSDK2 = FanMakerSDKs.getInstance("devDefinedKey2")
+
+        // Create intents
+        fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply {
+            putExtra("fanMakerKey", "devDefinedKey1")
+        }
+        fanmakerIntent2 = Intent(this, FanMakerActivity::class.java).apply {
+            putExtra("fanMakerKey", "devDefinedKey2")
+        }
+
+        // Set up close action handler for Activity (FanMakerSDKWebView)
+        fanMakerSDK1?.onActionTriggered = { action, params ->
+            if (action == "close") {
+                // Close the FanMakerSDKWebView activity
+                ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)
+            }
+        }
+
+        // Set up close action handler for Fragment (FanMakerActivity)
+        fanMakerSDK2?.onActionTriggered = { action, params ->
+            if (action == "close") {
+                // Close the FanMakerActivity containing the fragment
+                ActivityTracker.finishActivity(FanMakerActivity::class.java)
+            }
+        }
+    }
+}
+```
+
+**Note**: The `ActivityTracker` utility automatically handles activity registration for `FanMakerSDKWebView` and activities containing `FanMakerSDKWebViewFragment`. No additional setup is required.
+
+#### Handling Parameters in the Callback
+
+The `params` parameter in the callback is a `HashMap<String, Any>?` that contains the parsed JSON object:
+
+```
+fanMakerSDK1?.onActionTriggered = { action, params ->
+    if (action == "close") {
+        // Access parameters if provided
+        val message = params?.get("message") as? String
+        val reason = params?.get("reason") as? String
+
+        Log.d("FanMaker", "Closing SDK. Message: $message, Reason: $reason")
+
+        // Close the activity
+        ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)
+    }
+}
+```
+
 ### Loading Animation | Light vs Dark
 By default the FanMaker SDK will use a Light loading animated view when initializing the FanMaker SDK. There is an optional Dark loading animated view that you can use instead:
 ```
@@ -558,7 +636,7 @@ class MyActivity : AppCompatActivity() {
 
         // This would tell the SDK that we want to hide the FanMaker Menu
         fanMakerSDK?.fanMakerParameters["hide_menu"] = true
-        
+
         // These tell the SDK what the viewport dimensions are so FanMaker can respond accordingly
         fanMakerSDK?.fanMakerParameters["viewport_width"] = 512
         fanMakerSDK?.fanMakerParameters["viewport_height"] = 1024
