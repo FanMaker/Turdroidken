@@ -163,6 +163,7 @@ class FanMakerSDKBeaconManager(
         http.post("beacon_range_actions", body, {
             updateQueue(RANGE_ACTIONS_SEND_LIST, emptyArray())
             Log.d(TAG, "${queue.size} beacon range actions successfully posted")
+            Log.d(TAG, body.toString())
         }, { errorCode, errorMessage ->
             Log.e(TAG, "$errorCode: $errorMessage")
             updateQueue(RANGE_ACTIONS_SEND_LIST, queue)

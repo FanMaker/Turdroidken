@@ -67,7 +67,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "3.1.1",
+    var version: String = "3.2.0",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
@@ -138,6 +138,9 @@ class FanMakerSDK(
     lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
     lateinit var context: android.content.Context
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+
+    // Action callback for triggerAction - similar to NotificationCenter in Swift
+    var onActionTriggered: ((action: String, params: HashMap<String, Any>?) -> Unit)? = null
 
     // ------------------------------------------------------------------------------------------------------
 
@@ -225,7 +228,7 @@ class FanMakerSDK(
         }
 
         // If no identifiers are present or all values are empty, return false
-        if (identifiers.isEmpty() || identifiers.all { (_, value) -> 
+        if (identifiers.isEmpty() || identifiers.all { (_, value) ->
             when (value) {
                 is String -> value.isEmpty()
                 is Map<*, *> -> value.isEmpty()

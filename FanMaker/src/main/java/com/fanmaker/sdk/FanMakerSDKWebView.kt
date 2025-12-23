@@ -105,7 +105,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         val rootView = viewBinding.root
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            
+
             // Apply padding for system bars to the main container, allowing WebView to extend behind them
             view.updatePadding(
                 top = insets.top,
@@ -113,14 +113,17 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 right = insets.right,
                 bottom = insets.bottom
             )
-            
+
             WindowInsetsCompat.CONSUMED
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
+        // Register this activity so it can be finished from MainActivity callback
+        ActivityTracker.register(this)
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -149,7 +152,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
             uploadMessage?.onReceiveValue(results)
             uploadMessage = null
         }
-        
+
         setContentView(R.layout.fanmaker_sdk_webview)
 
         val fanMakerKey = intent.getStringExtra("fanMakerKey")
@@ -170,7 +173,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
         viewBinding = FanmakerSdkWebviewBinding.inflate(layoutInflater)
         setContentView(viewBinding.root)
-        
+
         // Set up window insets handling
         setupWindowInsets()
     viewBinding.imageCaptureButton.setOnClickListener { takePhoto() }
@@ -186,12 +189,12 @@ class FanMakerSDKWebView : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = findViewById<WebView>(R.id.fanmaker_sdk_webview)
-        
+
         // Enable WebView debugging for Chrome DevTools
         // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
         //     WebView.setWebContentsDebuggingEnabled(true)
         // }
-        
+
         if(fanMakerSDK.useDarkLoadingScreen) {
             loadingAnimationFrame = findViewById<FrameLayout>(R.id.fanmaker_sdk_dark_loading_frame)
             loadingAnimationView = findViewById<ImageView>(R.id.darkLoadingGif)
@@ -229,7 +232,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         webView.settings.domStorageEnabled = true
         webView.settings.allowContentAccess = true
         webView.settings.mediaPlaybackRequiresUserGesture = false
-        
+
         // Allow mixed content for Charles Proxy debugging
         webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
@@ -536,6 +539,8 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        // Unregister this activity
+        ActivityTracker.unregister(this)
         cameraExecutor.shutdown()
     }
 }

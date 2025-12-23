@@ -22,7 +22,11 @@ class FanMakerSDKWebInterface(
     private val mContext: Context,
     private val fanMakerSDK: FanMakerSDK,
     private val onRequestLocationAuthorization: (authorized: Boolean) -> Unit,
-    private val onUpdateLocation: (location: Location) -> Unit
+    private val onUpdateLocation: (location: Location) -> Unit,
+    private val onTriggerAction: (action: String, params: HashMap<String, Any>?) -> Unit = { action, params ->
+        // Use the callback from SDK instance if available
+        fanMakerSDK.onActionTriggered?.invoke(action, params)
+    }
 ) {
     private var locationManager: LocationManager? = null
     private var fanMakerSharedPreferences: FanMakerSharedPreferences = FanMakerSharedPreferences(mContext, fanMakerSDK.apiKey)
@@ -32,6 +36,30 @@ class FanMakerSDKWebInterface(
         Log.w("FANMAKER", "Opening External Url: " + url)
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
         mContext.startActivity(intent)
+    }
+
+    @JavascriptInterface
+    fun triggerAction(action: String, paramsJson: String) {
+        val parsedParams: HashMap<String, Any>? = if (paramsJson.isNotEmpty() && paramsJson != "null" && paramsJson != "undefined") {
+            try {
+                // Check if it's the string representation of an object
+                if (paramsJson == "[object Object]") {
+                    Log.e("FANMAKER", "Received '[object Object]' string - object was not stringified")
+                    null
+                } else {
+                    val jsonObject = JSONObject(paramsJson)
+                    val result = jsonObjectToAnyHashMap(jsonObject)
+                    Log.w("FANMAKER", "Successfully parsed JSON string to HashMap: $result")
+                    result
+                }
+            } catch (e: Exception) {
+                null
+            }
+        } else {
+            Log.w("FANMAKER", "ParamsJson is empty or null/undefined string")
+            null
+        }
+        onTriggerAction(action, parsedParams)
     }
 
     @JavascriptInterface

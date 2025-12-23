@@ -15,7 +15,6 @@ open class FanMakerSDKHttpRequest(
     listener: Response.Listener<JSONObject>?,
     errorListener: Response.ErrorListener?,
 ) : JsonObjectRequest(method, "$URL/$path", jsonRequest, listener, errorListener) {
-
     open fun getFanMakerToken(): String {
         if (token != null && token != "") { return token }
         return fanMakerSDK.apiKey

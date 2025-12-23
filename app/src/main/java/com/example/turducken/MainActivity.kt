@@ -1,7 +1,10 @@
 package com.example.turducken
 
 import android.Manifest
+import android.app.Activity
+import android.app.ActivityManager
 import android.app.AlertDialog
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -14,6 +17,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.updatePadding
+import com.fanmaker.sdk.ActivityTracker
 import com.fanmaker.sdk.FanMakerSDK
 import com.fanmaker.sdk.FanMakerSDKs
 import com.fanmaker.sdk.FanMakerSDKBeaconManager
@@ -68,6 +72,14 @@ class MainActivity : AppCompatActivity() {
             // Initialize beacon monitoring
             beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
             beaconManager1.fetchBeaconRegions()
+
+            // Set up action trigger callback for SDK1 (FanMakerSDKWebView Activity)
+            fanMakerSDK1!!.onActionTriggered = { action, params ->
+                if (action == "close") {
+                    // Finish the FanMakerSDKWebView activity
+                    ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)
+                }
+            }
         }
         if (fanMakerSDK2 != null) {
             // Enable location services for the SDK
@@ -77,6 +89,14 @@ class MainActivity : AppCompatActivity() {
             // Initialize beacon monitoring
             beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
             beaconManager2.fetchBeaconRegions()
+
+            // Set up action trigger callback for SDK2 (FanMakerActivity with Fragment)
+            fanMakerSDK2!!.onActionTriggered = { action, params ->
+                if (action == "close") {
+                    // Finish the FanMakerActivity
+                    ActivityTracker.finishActivity(FanMakerActivity::class.java)
+                }
+            }
         }
 
         // Check if this intent is started via a deep link
@@ -85,10 +105,10 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
-        
+
         setContentView(R.layout.activity_main)
 
         // Set up window insets handling
@@ -102,7 +122,7 @@ class MainActivity : AppCompatActivity() {
         val rootView = findViewById<View>(R.id.main_container)
         ViewCompat.setOnApplyWindowInsetsListener(rootView) { view, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
-            
+
             // Apply top padding for status bar, but allow content to scroll behind it
             view.updatePadding(
                 top = insets.top,
@@ -110,7 +130,7 @@ class MainActivity : AppCompatActivity() {
                 right = insets.right,
                 bottom = insets.bottom
             )
-            
+
             WindowInsetsCompat.CONSUMED
         }
     }
@@ -154,7 +174,7 @@ class MainActivity : AppCompatActivity() {
 
     fun openFanMakerSDKWebViewFragment(view: View) {
         setupIdentifiers()
-
+        // fanMakerSDK2?.handleUrl("schema://FanMaker/")
         startActivity(fanmakerIntent2)
     }
 
