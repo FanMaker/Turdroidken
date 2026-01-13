@@ -1,12 +1,5 @@
 # FanMaker SDK for Android App Development
 
-## :warning: BREAKING CHANGES IN 2.0 :warning:
-
-Version 2.0 of the FanMakerSDK has changed from static to instanced based initializtion. This means that you will need to modify your implementation to avoid service interruptions in this version. Previous versions of the SDK are no longer available for instalation. Support for SDK versions 1.x will be depreciated on December 20th, 2024, afterwords non version 2.0 + will cease to function.
-
-The benefits of SDK 2.0 are [described in detail on our blog](https://blog.fanmaker.com/sdk-2-0-background-check-ins-app-rewards-and-support-for-multiple-programs/).
-
-
 ## About
 
 The FanMaker SDK provides Android developers with a way of inserting the FanMaker UI in another app. The view can be displayed as any other Android Activity.
