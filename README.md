@@ -6,152 +6,44 @@ Version 2.0 of the FanMakerSDK has changed from static to instanced based initia
 
 The benefits of SDK 2.0 are [described in detail on our blog](https://blog.fanmaker.com/sdk-2-0-background-check-ins-app-rewards-and-support-for-multiple-programs/).
 
-## Upgrading to 2.0 from 1.x
-
-### Step 1:
-Previously the FanMaker SDK was initialized like this:
-```
-FanMakerSDK.initialize("<SDK_KEY>")
-```
-
-Now, you need to leverage the `FanMakerSDKs` singleton class to initialize and store your FanMakerSDK instances:
-```
-# Import the new FanMakerSDKs singleton class into your MainActivity so that it can be leveraged throughout the application
-import com.fanmaker.sdk.FanMakerSDKs
-
-class MainActivity : AppCompatActivity() {
-    ...
-    override fun onCreate(savedInstanceState: Bundle?) {
-        ...
-        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY>")
-        ...
-```
-
-The `setInstance` function of the `FanMakerSDKs` singleton class takes 3 arguments:
-1. the Context of the application
-2. the `DEV_DEFINED_KEY` that will be set and used to retreive this instance
-3. the `SDK_KEY` provided to you by the FanMaker team as you were using previously
-
-
-### Step 2:
-When you are preparing your Intent for display, you will need to pass the `fanMakerKey` to it as an extra. This `fanMakerKey` is the 2nd argument that was chosen during [step 1](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#step-1)
-
-```
-class MainActivity : AppCompatActivity() {
-    ...
-    lateinit var fanmakerIntent1: Intent
-
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        ...
-        fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        ...
-    }
-
-    fun openFanMakerSDKWebView(view: View) {
-        startActivity(fanmakerIntent1)
-    }
-```
-
-In the example above, `fanMakerIntent1` is established as a `lateinit var` for the ease of use across the MainActivity, which can be helpful for implementing [Deep Linking](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#deep-linking--universal-links), however, you may also simply setup the intent at the time you are planning on using it.
-
-### Step 3.
-If you are passing any values to the FanMakerSDK using one of our methods like setMemberID, setTicketmasterID, or setFanMakerIdentifiers, then be sure to specify which SDK instance you are passing the values to:
-
-```
-class MainActivity : AppCompatActivity() {
-    ...
-    var fanMakerSDK1: FanMakerSDK? = null
-    var fanMakerSDK2: FanMakerSDK? = null
-    ...
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        ...
-        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY_1>")
-        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY_2>", "<SDK_KEY_2>")
-
-        // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
-        fanMakerSDK1 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
-        fanMakerSDK2 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY_2>")
-        ...
-    }
-
-    fun setupIdentifiers() {
-        fanMakerSDK1?.memberID = "memberID"
-        fanMakerSDK2?.ticketmasterID = ticketmasterID
-    }
-
-    ...
-    fun openFanMakerSDKWebView(view: View) {
-        setupIdentifiers()
-        startActivity(fanmakerIntent1)
-    }
-
-    fun openFanMakerSDKWebViewFragment(view: View) {
-        setupIdentifiers()
-        startActivity(fanmakerIntent2)
-    }
-```
-
-In the example above, `fanMakerSDK1` and `fanMakerSDK2` are established as optional variables and then defined in the onCreate function using the `FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")` where, `DEV_DEFINED_KEY` is the second argument from [step 1](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#step-1).
-
-### Step 4:
-If you are using bluetooth beacons through the FanMaker SDK, you will need to update your implementation.
-
-Where you are initializing the FanMakerSDKBeaconsManager, you will now need to pass the instance of the SDK you are using:
-
-```
-class MainActivity : AppCompatActivity() {
-    ...
-    var fanMakerSDK1: FanMakerSDK? = null
-    var fanMakerSDK2: FanMakerSDK? = null
-
-    lateinit var beaconManager1: FanMakerSDKBeaconManager
-    lateinit var beaconManager2: FanMakerSDKBeaconManager
-    ...
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        ...
-        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY_1>")
-        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY_2>", "<SDK_KEY_2>")
-
-        // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
-        fanMakerSDK1 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
-        fanMakerSDK2 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY_2>")
-
-        // -- Do your check for location permissions here --
-        if (fanMakerSDK1 != null) {
-            // Enable location services for the SDK
-            fanMakerSDK1!!.locationEnabled = true
-
-            // Initialize beacon monitoring
-            beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
-            beaconManager1.fetchBeaconRegions()
-        }
-        if (fanMakerSDK2 != null) {
-            // Enable location services for the SDK
-            fanMakerSDK2!!.locationEnabled = true
-
-            // Initialize beacon monitoring
-            beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
-            beaconManager2.fetchBeaconRegions()
-        }
-    }
-
-    beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
-    beaconManager1.fetchBeaconRegions()
-
-    beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
-    beaconManager2.fetchBeaconRegions()
-```
-
-In the example above, `beaconManager1` and `beaconManager2` are established as `lateinit var` and then are defined in the `onCreate` method of your `MainActivity` using the `FanMakerSDKBeaconManager` class, which now requires a `FanMakerSDK` as the first argument.
-
-
 
 ## About
 
 The FanMaker SDK provides Android developers with a way of inserting the FanMaker UI in another app. The view can be displayed as any other Android Activity.
+
+## Successful Implementation Checklist
+
+Please follow this checklist to ensure the Fanmaker SDK is implemented correctly.
+The items below are **required for certification**.
+
+- [ ] **Ensure Fanmaker opens in a [FanMakerSDKWebView](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#displaying-fanmaker-ui) or [FanMakerSDKWebViewFragment](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#displaying-fanmaker-ui-as-a-fragment)**
+- [ ] **No primary app UI visible**
+  - No wrapper, header, or logos from the primary app present
+    (Client branding is displayed prominently *inside* the SDK)
+  - No primary app navigation visible when opening the Fanmaker SDK to avoid confusion or menu stacking
+- [ ] **Exit behavior implemented**
+  - Back button press **or**
+  - [Close action handled](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#closing-the-sdk-from-web-content)
+- [ ] **Background GPS permissions**
+  - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#location-tracking-permissions)
+  - Functioning as expected
+- [ ] **Background Bluetooth permissions**
+  - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#beacons-tracking-permissions)
+  - Functioning as expected
+- [ ] **Push notification token**
+  - Token for each user is passed to Fanmaker
+  - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#passing-a-push-notification-token)
+- [ ] **Deep link handling**
+  - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#deep-linking--universal-links)
+  - Functioning as expected
+
+Additional features—such as
+[logged-in user handling](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#passing-custom-identifiers),
+[privacy permissions](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#privacy-permissions-optional),
+or [light/dark mode support](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#loading-animation--light-vs-dark)—
+may be required based on specific client needs.
+
+The checklist above represents the **minimum required for a certified integration**.
 
 ## Usage
 
@@ -587,7 +479,6 @@ class MyActivity : AppCompatActivity() {
         fanMakerSDK?.studentID = <studentID>
         fanMakerSDK?.ticketmasterID = <ticketmasterID>
         fanMakerSDK?.yinzid = <yinzid>
-        fanMakerSDK?.pushNotificationToken = <pushToken>
 
         val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
         startActivity(intent)
@@ -662,8 +553,34 @@ fanMakerSDK?.memberID
 fanMakerSDK?.studentID
 fanMakerSDK?.ticketmasterID
 fanMakerSDK?.yinzid
-fanMakerSDK?.pushNotificationToken
 fanMakerSDK?.arbitraryIdentifiers
+```
+
+### Passing a Push Notification Token
+
+In addition to user identifiers, the FanMaker SDK allows you to provide a Push Notification Token. This token enables Fanmaker to send push notifications directly to users of your application.
+
+Once you've obtained a valid push notification token from Firebase Cloud Messaging (FCM), pass it to the FanMaker SDK before presenting the FanMaker UI. The SDK will associate the token with the current user session.
+
+```
+import com.fanmaker.sdk.FanMakerSDKWebView
+
+class MyActivity : AppCompatActivity() {
+    var fanMakerSDK: FanMakerSDK? = null
+    . . .
+
+    fun openFanMakerSDKWebView(view: View) {
+        fanMakerSDK?.pushNotificationToken = <pushToken>
+
+        val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
+        startActivity(intent)
+    }
+}
+```
+
+**Note**: The push notification token is automatically defined when set and becomes accessible via the following public variable:
+```
+fanMakerSDK?.pushNotificationToken
 ```
 
 ### Privacy Permissions (Optional)
@@ -862,3 +779,144 @@ class MainActivity : AppCompatActivity() {
         ...
     }
 ```
+
+## Upgrading to 2.0 from 1.x
+
+### Step 1:
+Previously the FanMaker SDK was initialized like this:
+```
+FanMakerSDK.initialize("<SDK_KEY>")
+```
+
+Now, you need to leverage the `FanMakerSDKs` singleton class to initialize and store your FanMakerSDK instances:
+```
+# Import the new FanMakerSDKs singleton class into your MainActivity so that it can be leveraged throughout the application
+import com.fanmaker.sdk.FanMakerSDKs
+
+class MainActivity : AppCompatActivity() {
+    ...
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY>")
+        ...
+```
+
+The `setInstance` function of the `FanMakerSDKs` singleton class takes 3 arguments:
+1. the Context of the application
+2. the `DEV_DEFINED_KEY` that will be set and used to retreive this instance
+3. the `SDK_KEY` provided to you by the FanMaker team as you were using previously
+
+
+### Step 2:
+When you are preparing your Intent for display, you will need to pass the `fanMakerKey` to it as an extra. This `fanMakerKey` is the 2nd argument that was chosen during [step 1](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#step-1)
+
+```
+class MainActivity : AppCompatActivity() {
+    ...
+    lateinit var fanmakerIntent1: Intent
+
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
+        ...
+    }
+
+    fun openFanMakerSDKWebView(view: View) {
+        startActivity(fanmakerIntent1)
+    }
+```
+
+In the example above, `fanMakerIntent1` is established as a `lateinit var` for the ease of use across the MainActivity, which can be helpful for implementing [Deep Linking](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#deep-linking--universal-links), however, you may also simply setup the intent at the time you are planning on using it.
+
+### Step 3.
+If you are passing any values to the FanMakerSDK using one of our methods like setMemberID, setTicketmasterID, or setFanMakerIdentifiers, then be sure to specify which SDK instance you are passing the values to:
+
+```
+class MainActivity : AppCompatActivity() {
+    ...
+    var fanMakerSDK1: FanMakerSDK? = null
+    var fanMakerSDK2: FanMakerSDK? = null
+    ...
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY_1>")
+        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY_2>", "<SDK_KEY_2>")
+
+        // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
+        fanMakerSDK1 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
+        fanMakerSDK2 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY_2>")
+        ...
+    }
+
+    fun setupIdentifiers() {
+        fanMakerSDK1?.memberID = "memberID"
+        fanMakerSDK2?.ticketmasterID = ticketmasterID
+    }
+
+    ...
+    fun openFanMakerSDKWebView(view: View) {
+        setupIdentifiers()
+        startActivity(fanmakerIntent1)
+    }
+
+    fun openFanMakerSDKWebViewFragment(view: View) {
+        setupIdentifiers()
+        startActivity(fanmakerIntent2)
+    }
+```
+
+In the example above, `fanMakerSDK1` and `fanMakerSDK2` are established as optional variables and then defined in the onCreate function using the `FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")` where, `DEV_DEFINED_KEY` is the second argument from [step 1](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#step-1).
+
+### Step 4:
+If you are using bluetooth beacons through the FanMaker SDK, you will need to update your implementation.
+
+Where you are initializing the FanMakerSDKBeaconsManager, you will now need to pass the instance of the SDK you are using:
+
+```
+class MainActivity : AppCompatActivity() {
+    ...
+    var fanMakerSDK1: FanMakerSDK? = null
+    var fanMakerSDK2: FanMakerSDK? = null
+
+    lateinit var beaconManager1: FanMakerSDKBeaconManager
+    lateinit var beaconManager2: FanMakerSDKBeaconManager
+    ...
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        ...
+        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY_1>")
+        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY_2>", "<SDK_KEY_2>")
+
+        // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
+        fanMakerSDK1 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
+        fanMakerSDK2 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY_2>")
+
+        // -- Do your check for location permissions here --
+        if (fanMakerSDK1 != null) {
+            // Enable location services for the SDK
+            fanMakerSDK1!!.locationEnabled = true
+
+            // Initialize beacon monitoring
+            beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
+            beaconManager1.fetchBeaconRegions()
+        }
+        if (fanMakerSDK2 != null) {
+            // Enable location services for the SDK
+            fanMakerSDK2!!.locationEnabled = true
+
+            // Initialize beacon monitoring
+            beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
+            beaconManager2.fetchBeaconRegions()
+        }
+    }
+
+    beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
+    beaconManager1.fetchBeaconRegions()
+
+    beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
+    beaconManager2.fetchBeaconRegions()
+```
+
+In the example above, `beaconManager1` and `beaconManager2` are established as `lateinit var` and then are defined in the `onCreate` method of your `MainActivity` using the `FanMakerSDKBeaconManager` class, which now requires a `FanMakerSDK` as the first argument.
