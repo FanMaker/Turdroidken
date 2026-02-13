@@ -302,9 +302,9 @@ fanMakerSDK1?.onActionTriggered = { action, params ->
 ```
 
 ### Loading Animation | Light vs Dark
-By default the FanMaker SDK will use a Light loading animated view when initializing the FanMaker SDK. There is an optional Dark loading animated view that you can use instead:
+By default the FanMaker SDK will use a Dark loading animated view when initializing the FanMaker SDK. If you prefer a Light loading animated view, you can set:
 ```
-fanMakerSDK1!!.useDarkLoadingScreen = true
+fanMakerSDK1!!.useDarkLoadingScreen = false
 ```
 
 ### Deep Linking / Universal Links
