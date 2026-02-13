@@ -12,6 +12,7 @@ open class FanMakerSDKHttpRequest(
     path: String?,
     jsonRequest: JSONObject?,
     val token: String? = "",
+    val tokenType: FanMakerSDKTokenType? = null,
     listener: Response.Listener<JSONObject>?,
     errorListener: Response.ErrorListener?,
 ) : JsonObjectRequest(method, "$URL/$path", jsonRequest, listener, errorListener) {
@@ -22,9 +23,28 @@ open class FanMakerSDKHttpRequest(
 
     override fun getHeaders(): MutableMap<String, String> {
         val headers = HashMap<String, String>()
-        var fanmaker_token = getFanMakerToken()
-        headers["X-FanMaker-Token"] = fanmaker_token
-        headers["Authorization"] = fanmaker_token
+        val rawToken = getFanMakerToken()
+
+        if (tokenType != null) {
+            when (tokenType) {
+                is FanMakerSDKTokenType.OAuthToken -> {
+                    // OAuth: only send Bearer access token via Authorization header.
+                    // Do NOT send X-FanMaker-Token or X-FanMaker-SessionToken to avoid
+                    // confusing the API's token lookup.
+                    headers["Authorization"] = FanMakerSDKTokenResolver.authorizationHeaderValue(tokenType)
+                }
+                is FanMakerSDKTokenType.ApiToken -> {
+                    // Plain API token: same as legacy behavior
+                    headers["X-FanMaker-Token"] = rawToken
+                    headers["Authorization"] = rawToken
+                }
+            }
+        } else {
+            // No token type resolved: legacy behavior
+            headers["X-FanMaker-Token"] = rawToken
+            headers["Authorization"] = rawToken
+        }
+
         headers["X-FanMaker-Mode"] = "sdk"
         headers["X-FanMaker-SDK-Version"] = fanMakerSDK.version
 
@@ -47,6 +67,7 @@ open class FanMakerSDKHttpRequest(
     }
 
     companion object {
-        const val URL = "https://api3.fanmaker.com/api/v3"
+        const val API_BASE = "https://api3.fanmaker.com"
+        const val URL = "$API_BASE/api/v3"
     }
 }

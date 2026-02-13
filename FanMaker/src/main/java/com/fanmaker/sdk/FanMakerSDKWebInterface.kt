@@ -217,6 +217,25 @@ class FanMakerSDKWebInterface(
     fun fetchJSONValue(value: String) {
         Log.w("FANMAKER", "FETCHING JSON VALUE: $value")
         when (value) {
+            "sessionToken" -> {
+                val token = fanMakerSharedPreferences.getString("token", "") ?: ""
+                val escapedToken = token.replace("\"", "\\\"")
+                val jsString = "FanmakerSDKCallback(\"$escapedToken\")"
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $jsString
+                        """.trimIndent(), null)
+                    }
+                }
+            }
             "locationServicesEnabled" -> {
                 val locationManager = mContext.getSystemService(Context.LOCATION_SERVICE) as LocationManager
                 val authorizationStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

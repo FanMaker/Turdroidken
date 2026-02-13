@@ -12,6 +12,7 @@
         <domain includeSubdomains="true">amazonaws.com</domain>
         <domain includeSubdomains="true">api3.fanmaker.work</domain>
         <domain includeSubdomains="true">api.fanmaker.work</domain>
+        <domain includeSubdomains="true">nux.fanmaker.work</domain>
         <domain includeSubdomains="true">rewards-hud.work</domain>
         <domain includeSubdomains="true">localhost</domain>
         <domain includeSubdomains="true">10.0.2.2</domain>

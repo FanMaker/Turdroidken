@@ -67,7 +67,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "3.2.0",
+    var version: String = "4.0.0",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
@@ -78,7 +78,7 @@ class FanMakerSDK(
     private var _arbitraryIdentifiers: ObservableHashMap<String, String> = ObservableHashMap { },
     var fanMakerParameters: HashMap<String, Any> = HashMap<String, Any>(),
     var fanMakerUserToken: HashMap<String, Any> = HashMap<String, Any>(),
-    var useDarkLoadingScreen: Boolean = false,
+    var useDarkLoadingScreen: Boolean = true,
     var locationEnabled: Boolean = false,
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",
@@ -158,6 +158,16 @@ class FanMakerSDK(
         return apiKey != ""
     }
 
+    /**
+     * Updates the session token stored in SharedPreferences.
+     * Called by the token resolver after a successful OAuth token refresh.
+     */
+    fun updateSessionToken(tokenString: String) {
+        if (::fanMakerSharedPreferences.isInitialized) {
+            fanMakerSharedPreferences.putString("token", tokenString)
+        }
+    }
+
     fun isLocationTrackingEnabled(): Boolean {
         return this.locationEnabled
     }
@@ -175,6 +185,7 @@ class FanMakerSDK(
         headers.put("X-FanMaker-SDK-Version", this.version)
         headers.put("X-FanMaker-SDK-Platform", "Turdroidken")
         headers.put("X-FanMaker-Mode", "sdk")
+        headers.put("X-Fanmaker-Theme", if (this.useDarkLoadingScreen) "dark" else "light")
 
         if (this.memberID != "") headers.put("X-Member-ID", this.memberID)
         if (this.studentID != "") headers.put("X-Student-ID", this.studentID)
@@ -198,7 +209,13 @@ class FanMakerSDK(
 
         val userToken = fanMakerSharedPreferences.getString("token", "")
         if (userToken != null && userToken != "") {
-            headers.put("X-FanMaker-SessionToken", userToken)
+            // Resolve token type to set headers appropriately
+            val tokenType = FanMakerSDKTokenResolver.resolve(userToken)
+            val sessionHeaderValue = FanMakerSDKTokenResolver.sessionTokenHeaderValue(tokenType, userToken)
+            val authHeaderValue = FanMakerSDKTokenResolver.authorizationHeaderValue(tokenType)
+
+            headers.put("X-FanMaker-SessionToken", sessionHeaderValue)
+            headers.put("Authorization", authHeaderValue)
         }
 
         headers.put("X-FanMaker-Token", this.apiKey)
@@ -337,32 +354,35 @@ class FanMakerSDK(
         if (isLocationTrackingEnabled() && ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
             && ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
 
-            // we only wnt to continue if we have a user token already
-            val userToken = fanMakerSharedPreferences.getString("token", "")
-            if (userToken!!.isNotEmpty()) {
-                // Request location updates
-                @Suppress("DEPRECATION")
-                val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
-                    .setMaxUpdateDelayMillis(10000)
-                    .build()
+            // Request location updates
+            @Suppress("DEPRECATION")
+            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
+                .setMaxUpdateDelayMillis(10000)
+                .build()
 
-                locationRequest?.let {
-                    fusedLocationClient.getCurrentLocation(it.priority, null)
-                    .addOnSuccessListener { location: Location? ->
-                        location?.let {
-                            // Use the location object here
-                            if (it.latitude != 0.0 && it.longitude != 0.0) {
+            locationRequest?.let {
+                fusedLocationClient.getCurrentLocation(it.priority, null)
+                .addOnSuccessListener { location: Location? ->
+                    location?.let {
+                        // Use the location object here
+                        if (it.latitude != 0.0 && it.longitude != 0.0) {
+                            // Read token INSIDE the callback so we get the latest value
+                            // (a prior refresh from sendAppEvent may have updated it)
+                            val userToken = fanMakerSharedPreferences.getString("token", "")
+                            if (userToken!!.isNotEmpty()) {
                                 val http = FanMakerSDKHttp(this, context, userToken)
                                 val params = HashMap<String, String>()
                                 params["latitude"] = it.latitude.toString()
                                 params["longitude"] = it.longitude.toString()
 
-                                http.post("events/auto_checkin", params, { response -> }, { errorCode, errorMessage -> })
+                                http.post("events/auto_checkin", params,
+                                    { response -> Log.w("FanMakerSDK", "######## AUTO CHECKIN: Success") },
+                                    { errorCode, errorMessage -> Log.e("FanMakerSDK", "######## AUTO CHECKIN: Failed ($errorCode) $errorMessage") }
+                                )
                             }
                         }
                     }
                 }
-
             }
         } else {
             Log.e("FanMakerSDK", "Location permission not granted")

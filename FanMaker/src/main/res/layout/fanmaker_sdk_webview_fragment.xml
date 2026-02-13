@@ -13,41 +13,18 @@
         android:layout_height="match_parent" />
 
     <FrameLayout
-        xmlns:android="http://schemas.android.com/apk/res/android"
         android:id="@+id/fanmaker_sdk_light_loading_frame"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/fanMakerLightLoading"
-        android:visibility="gone"
-        >
-
-        <ImageView
-            android:id="@+id/lightLoadingGif"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:visibility="visible"
-            android:src="@drawable/fanmaker_sdk_light_loading" />
-    </FrameLayout>
+        android:visibility="gone" />
 
     <FrameLayout
-        xmlns:android="http://schemas.android.com/apk/res/android"
-        android:visibility="gone"
         android:id="@+id/fanmaker_sdk_dark_loading_frame"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:background="@color/fanMakerDarkLoading"
-        >
-
-        <ImageView
-            android:id="@+id/darkLoadingGif"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:visibility="visible"
-            android:src="@drawable/fanmaker_sdk_dark_loading" />
-
-    </FrameLayout>
+        android:visibility="gone" />
 
     <androidx.camera.view.PreviewView
         android:id="@+id/viewFinder"
