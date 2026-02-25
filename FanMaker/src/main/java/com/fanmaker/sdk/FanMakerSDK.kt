@@ -67,7 +67,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "4.0.0",
+    var version: String = "4.0.1",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
@@ -79,6 +79,8 @@ class FanMakerSDK(
     var fanMakerParameters: HashMap<String, Any> = HashMap<String, Any>(),
     var fanMakerUserToken: HashMap<String, Any> = HashMap<String, Any>(),
     var useDarkLoadingScreen: Boolean = true,
+    var requestTimeoutMs: Int = 10000,
+    var requestMaxRetries: Int = com.android.volley.DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
     var locationEnabled: Boolean = false,
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",

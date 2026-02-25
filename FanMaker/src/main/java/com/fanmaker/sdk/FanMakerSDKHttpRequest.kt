@@ -1,5 +1,6 @@
 package com.fanmaker.sdk
 
+import com.android.volley.DefaultRetryPolicy
 import com.android.volley.NetworkResponse
 import com.android.volley.Response
 import com.android.volley.toolbox.HttpHeaderParser
@@ -16,6 +17,13 @@ open class FanMakerSDKHttpRequest(
     listener: Response.Listener<JSONObject>?,
     errorListener: Response.ErrorListener?,
 ) : JsonObjectRequest(method, "$URL/$path", jsonRequest, listener, errorListener) {
+    init {
+        retryPolicy = DefaultRetryPolicy(
+            fanMakerSDK.requestTimeoutMs,
+            fanMakerSDK.requestMaxRetries,
+            DefaultRetryPolicy.DEFAULT_BACKOFF_MULT
+        )
+    }
     open fun getFanMakerToken(): String {
         if (token != null && token != "") { return token }
         return fanMakerSDK.apiKey
