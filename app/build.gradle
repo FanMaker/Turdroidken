@@ -62,7 +62,7 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.android.volley:volley:1.2.1'
     // implementation project(':FanMaker')
-    implementation 'com.fanmaker.sdk:fanmaker:4.0.0'
+    implementation 'com.fanmaker.sdk:fanmaker:4.0.1'
 
     // Updated test dependencies
     testImplementation 'junit:junit:4.13.2'
