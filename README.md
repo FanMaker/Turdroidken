@@ -770,6 +770,10 @@ In order for Beacons Tracking to work, you need to add the following permissions
 
 > **Android 12+ Bluetooth**: `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` are runtime permissions on Android 12 (API 31) and above. You must request both from the user at runtime in addition to declaring them in the manifest. On Android 11 and below, the legacy `BLUETOOTH` and `BLUETOOTH_ADMIN` permissions required for beacon scanning are automatically included via the altbeacon library's own manifest — no additional declarations needed for those older API levels.
 
+> **Do not use `neverForLocation`**: Do not add `android:usesPermissionFlags="neverForLocation"` to `BLUETOOTH_SCAN`. Although this flag appears to reduce permission scope, it causes Android to block iBeacon advertisement packets entirely, which breaks beacon detection.
+
+> **Background scanning on Android 8+ (API 26+)**: The SDK disables altbeacon's scheduled scan jobs (`setEnableScheduledScanJobs(false)`). On Android 8 and above, this means the OS may aggressively restrict background beacon scanning unless your app runs the altbeacon library in foreground service mode. If your integration requires reliable scanning while the app is not in the foreground, refer to the [altbeacon foreground service documentation](https://altbeacon.github.io/android-beacon-library/foreground-service.html) for setup instructions. This is a host app responsibility — the SDK does not configure the foreground service for you.
+
 ### [Reward Usage of Host App](https://blog.fanmaker.com/sdk-2-0-background-check-ins-app-rewards-and-support-for-multiple-programs/)
 
 By setting up a lifecycle observer on each instance of the FanMakerSDK, you can capture this highly useful data or award points for each day the fan uses the your host application.
