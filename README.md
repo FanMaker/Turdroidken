@@ -20,8 +20,8 @@ The items below are **required for certification**.
 - [ ] **Background GPS permissions**
   - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#location-tracking-permissions)
   - Functioning as expected
-- [ ] **Background Bluetooth permissions**
-  - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#beacons-tracking-permissions)
+- [ ] **Background Bluetooth permissions** *(required only if using bluetooth beacons)*
+  - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#beacons-tracking-permissions) (`BLUETOOTH_SCAN` + `BLUETOOTH_CONNECT` on Android 12+)
   - Functioning as expected
 - [ ] **Push notification token**
   - Token for each user is passed to Fanmaker
@@ -119,36 +119,48 @@ allprojects {
 - inside dependencies of the build.gradle of app module, use the following code
 ```markdown
 dependencies {
-    implementation 'com.android.volley:volley:1.2.0'
-    implementation 'com.fanmaker.sdk:fanmaker:2.0.0'
+    implementation 'com.fanmaker.sdk:fanmaker:4.0.1'
 	...
 }
 ```
-- inside dependencies of the build.gradle of app module, make sure that you set the `compleSdkVersion` and `targetSdkVersion` to 33
+> **Note**: Volley is bundled as a transitive dependency of the SDK — you do not need to add it separately.
+
+- inside the build.gradle of your app module, make sure you set the `compileSdk`, `targetSdk`, and `minSdk` values:
 ```markdown
   android {
-    compileSdkVersion 33
+    compileSdk 35
     ...
 
     defaultConfig {
       ...
-      targetSdkVersion 33
+      minSdk 24
+      targetSdk 35
       ...
     }
   }
 ```
 
 ### Step 4 : Add the following permissions to the AndroidManifest.xml
-- Add the following code to the **AndroidManifext.xml** directly after the `<manifest ...>` tag.
-- These allow access to the camera and image gallery for user to upload profile pictures and engage with CrowdCameo.
+- Add the following code to the **AndroidManifest.xml** directly after the `<manifest ...>` tag.
+- These allow access to the camera and image gallery for users to upload profile pictures and engage with CrowdCameo.
 
 ```markdown
 <uses-permission android:name="android.permission.CAMERA" />
-<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
-<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+
+<!-- Legacy storage access for Android 9 and below -->
+<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+<uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
+
+<!-- Modern photo picker for Android 13+ (API 33+) -->
+<uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
+
 <uses-feature android:name="android.hardware.camera" android:required="false" />
 <uses-feature android:name="android.hardware.camera.front" android:required="false" />
 ```
+
+> **Note on storage permissions**: Android 10 (API 29) introduced scoped storage. The `maxSdkVersion` attributes above ensure legacy storage permissions are only applied on older OS versions. On Android 13+ (API 33+), `READ_MEDIA_VISUAL_USER_SELECTED` enables the modern photo picker instead. The SDK handles both paths automatically.
+
+> **Note on FileProvider**: The SDK includes its own `FileProvider` for securely sharing captured photos. You do **not** need to add a FileProvider to your own manifest. If your app already declares a FileProvider, ensure the authorities do not conflict — the SDK uses `${applicationId}.fanmaker.sdk.fileprovider`.
 
 NOTE: if you are targeting SDK Version 31 or Higher, you need to make sure any activity that includes an `intent-filter` has `android:exported="true|false"` like so:
 ``` markdown
@@ -629,11 +641,13 @@ fanMakerSDK?.enableLocationTracking()
 ```
 
 ### Location Tracking Permissions
-In order for Location Tracking to work, you need to add the following permissions to your Manifest, as well as asking users for them in running time:
+In order for Location Tracking to work, you need to add the following permissions to your Manifest, as well as requesting them at runtime:
 ```
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 ```
+
+These foreground location permissions are sufficient for Auto Checkin — the GPS ping fires when the app resumes to the foreground (`onResume`), so background location access is not required for this feature. `ACCESS_BACKGROUND_LOCATION` is only needed if you are using [Beacons Tracking](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#beacons-tracking-permissions).
 
 ### Auto Checkin
 The FanMakerSDK can auto checkin users to events without them opening the FanMakerSDK itself. Once the user has successfully logged into the FanMakerSDK and granted location permissions, on subsequent opens of your application, the FanMakerSDK will automatically attempt to automatically checkin the user to events within range. Be sure to enable location tracking for the feature to be enabled on every instance of the FanMakerSDK you would like to use. You must also add a lifecycle observer to each SDK instance you'd like to have Auto Checkin and App open/resume enabled for using the `lifecycle.addObserver` method:
@@ -738,14 +752,27 @@ class BeaconEventHandler : FanMakerSDKBeaconEventHandler {
 
 ### Beacons Tracking Permissions
 
-In order for Beacons Tracking to work, you need to add the following permissions to your Manifest, as well as asking users for them in running time:
+> **Important**: Beacon tracking is an **optional feature**. Only add these permissions if your integration uses `FanMakerSDKBeaconManager`. Declaring permissions your app does not use is a violation of [Google Play's permissions policy](https://support.google.com/googleplay/android-developer/answer/9214102) and may result in rejection.
+
+In order for Beacons Tracking to work, you need to add the following permissions to your Manifest, as well as requesting them at runtime:
 
 ```
 <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+<!-- Bluetooth permissions required for beacon scanning on Android 12+ (API 31+) -->
 <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+<uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 ```
+
+> **Google Play — Background Location**: Apps that declare `ACCESS_BACKGROUND_LOCATION` are subject to an additional review in the Google Play Console. You must complete the **Background location access** declaration form in your app's Play Console and provide a justification for why background location is needed. Approval is not automatic. See [Google's guidance on background location](https://support.google.com/googleplay/android-developer/answer/9799150).
+
+> **Android 12+ Bluetooth**: `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` are runtime permissions on Android 12 (API 31) and above. You must request both from the user at runtime in addition to declaring them in the manifest. On Android 11 and below, the legacy `BLUETOOTH` and `BLUETOOTH_ADMIN` permissions required for beacon scanning are automatically included via the altbeacon library's own manifest — no additional declarations needed for those older API levels.
+
+> **Do not use `neverForLocation`**: Do not add `android:usesPermissionFlags="neverForLocation"` to `BLUETOOTH_SCAN`. Although this flag appears to reduce permission scope, it causes Android to block iBeacon advertisement packets entirely, which breaks beacon detection.
+
+> **Background scanning on Android 8+ (API 26+)**: The SDK disables altbeacon's scheduled scan jobs (`setEnableScheduledScanJobs(false)`). On Android 8 and above, this means the OS may aggressively restrict background beacon scanning unless your app runs the altbeacon library in foreground service mode. If your integration requires reliable scanning while the app is not in the foreground, refer to the [altbeacon foreground service documentation](https://altbeacon.github.io/android-beacon-library/foreground-service.html) for setup instructions. This is a host app responsibility — the SDK does not configure the foreground service for you.
 
 ### [Reward Usage of Host App](https://blog.fanmaker.com/sdk-2-0-background-check-ins-app-rewards-and-support-for-multiple-programs/)
 

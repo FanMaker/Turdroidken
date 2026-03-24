@@ -274,6 +274,37 @@ class FanMakerSDKWebInterface(
                     }
                 }
             }
+            "bluetoothEnabled" -> {
+                val status = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val scanStatus = ContextCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_SCAN)
+                    val connectStatus = ContextCompat.checkSelfPermission(mContext, Manifest.permission.BLUETOOTH_CONNECT)
+                    when {
+                        scanStatus == PackageManager.PERMISSION_GRANTED && connectStatus == PackageManager.PERMISSION_GRANTED -> "Granted"
+                        scanStatus == PackageManager.PERMISSION_GRANTED -> "Scan Only"
+                        connectStatus == PackageManager.PERMISSION_GRANTED -> "Connect Only"
+                        else -> "Denied"
+                    }
+                } else {
+                    "Granted"
+                }
+
+                val escapedValue = status.replace("\"", "\\\"")
+                val jsString = "FanmakerSDKCallback(\"{ \\\"value\\\": \\\"$escapedValue\\\" }\")"
+                (mContext as? android.app.Activity)?.runOnUiThread {
+                    (mContext as? android.app.Activity)?.findViewById<android.webkit.WebView>(R.id.fanmaker_sdk_webview)?.let { webView ->
+                        webView.evaluateJavascript("""
+                            if (typeof FanmakerSDKCallback === 'undefined') {
+                                window.FanmakerSDKCallback = function(data) {
+                                    window.dispatchEvent(new CustomEvent('fanmakerSDKCallback', {
+                                        detail: data
+                                    }));
+                                };
+                            }
+                            $jsString
+                        """.trimIndent(), null)
+                    }
+                }
+            }
             "locationEnabled" -> {
                 val result = jsonValueForKey("locationEnabled")
                 (mContext as? android.app.Activity)?.runOnUiThread {
