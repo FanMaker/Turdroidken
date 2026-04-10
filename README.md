@@ -31,10 +31,8 @@ The items below are **required for certification**.
   - Functioning as expected
 
 Additional features—such as
-[logged-in user handling](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#passing-custom-identifiers),
-[privacy permissions](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#privacy-permissions-optional),
-or [light/dark mode support](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#loading-animation--light-vs-dark)—
-may be required based on specific client needs.
+[logged-in user handling](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#passing-custom-identifiers) or
+[privacy permissions](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#privacy-permissions-optional)
 
 The checklist above represents the **minimum required for a certified integration**.
 
