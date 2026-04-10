@@ -175,10 +175,28 @@ class FanMakerSDKWebViewFragment : Fragment() {
             return viewBinding.root
         }
 
-        loadingFrame = if (fanMakerSDK!!.useDarkLoadingScreen) {
-            viewBinding.root.findViewById(R.id.fanmaker_sdk_dark_loading_frame)
-        } else {
+        loadingFrame = if (!fanMakerSDK!!.useDarkLoadingScreen) {
             viewBinding.root.findViewById(R.id.fanmaker_sdk_light_loading_frame)
+        } else {
+            viewBinding.root.findViewById(R.id.fanmaker_sdk_dark_loading_frame)
+        }
+        fanMakerSDK!!.loadingBackgroundColor?.let { loadingFrame.setBackgroundColor(it) }
+        fanMakerSDK!!.loadingAnimationDrawable?.let { drawableResId ->
+            loadingFrame.removeAllViews()
+            val maxWidth = (resources.displayMetrics.widthPixels * 0.7).toInt()
+            val imageView = android.widget.ImageView(requireContext())
+            imageView.setImageResource(drawableResId)
+            imageView.adjustViewBounds = true
+            imageView.layoutParams = FrameLayout.LayoutParams(
+                maxWidth,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
+                android.view.Gravity.CENTER
+            )
+            loadingFrame.addView(imageView)
+            val drawable = imageView.drawable
+            if (drawable is android.graphics.drawable.AnimationDrawable) {
+                drawable.start()
+            }
         }
         loadingFrame.visibility = FrameLayout.VISIBLE
 

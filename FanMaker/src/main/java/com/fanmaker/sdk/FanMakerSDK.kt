@@ -67,7 +67,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "4.0.1",
+    var version: String = "4.0.2",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
@@ -79,6 +79,8 @@ class FanMakerSDK(
     var fanMakerParameters: HashMap<String, Any> = HashMap<String, Any>(),
     var fanMakerUserToken: HashMap<String, Any> = HashMap<String, Any>(),
     var useDarkLoadingScreen: Boolean = true,
+    var loadingBackgroundColor: Int? = null,
+    var loadingAnimationDrawable: Int? = null,
     var requestTimeoutMs: Int = 10000,
     var requestMaxRetries: Int = com.android.volley.DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
     var locationEnabled: Boolean = false,
@@ -180,6 +182,14 @@ class FanMakerSDK(
 
     fun disableLocationTracking() {
         this.locationEnabled = false
+    }
+
+    fun setLoadingBackgroundColor(color: Int) {
+        this.loadingBackgroundColor = color
+    }
+
+    fun setLoadingAnimationDrawable(drawableResId: Int) {
+        this.loadingAnimationDrawable = drawableResId
     }
 
     fun webViewHeaders(): HashMap<String, String> {

@@ -119,7 +119,7 @@ allprojects {
 - inside dependencies of the build.gradle of app module, use the following code
 ```markdown
 dependencies {
-    implementation 'com.fanmaker.sdk:fanmaker:4.0.1'
+    implementation 'com.fanmaker.sdk:fanmaker:4.0.2'
 	...
 }
 ```
@@ -313,11 +313,28 @@ fanMakerSDK1?.onActionTriggered = { action, params ->
 }
 ```
 
-### Loading Animation | Light vs Dark
-By default the FanMaker SDK will use a Dark loading animated view when initializing the FanMaker SDK. If you prefer a Light loading animated view, you can set:
+#### Custom Loading Animation
+
+By default the FanMaker SDK displays a standard loading spinner while the WebView is loading. You can customize the loading animation. To replace the default spinner with your own animation, create an `animation-list` drawable in your app's `res/drawable/` directory:
+
+```xml
+<!-- res/drawable/my_custom_loading.xml -->
+<animation-list xmlns:android="http://schemas.android.com/apk/res/android"
+    android:oneshot="false">
+    <item android:drawable="@drawable/my_loading_frame_00" android:duration="33" />
+    <item android:drawable="@drawable/my_loading_frame_01" android:duration="33" />
+    <item android:drawable="@drawable/my_loading_frame_02" android:duration="33" />
+    <!-- ... -->
+</animation-list>
 ```
-fanMakerSDK1!!.useDarkLoadingScreen = false
+
+Then pass the drawable resource to the SDK before opening the WebView:
+
 ```
+fanMakerSDK1!!.setLoadingAnimationDrawable(R.drawable.my_custom_loading)
+```
+
+The custom animation will be centered on the loading screen.
 
 ### Deep Linking / Universal Links
 If you wish to link to something within the FanMaker SDK, you need to setup your application to accept URL Scheme or Universal Links, or know the resource you are trying to access.
