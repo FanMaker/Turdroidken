@@ -67,7 +67,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "4.0.2",
+    var version: String = "4.0.3",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
@@ -145,6 +145,13 @@ class FanMakerSDK(
 
     // Action callback for triggerAction - similar to NotificationCenter in Swift
     var onActionTriggered: ((action: String, params: HashMap<String, Any>?) -> Unit)? = null
+
+    // Close callback, invoked when web content triggers the "close" action.
+    // When set, the SDK hands close handling to the integrator and will NOT
+    // auto-dismiss — use this to dismiss a FanMakerSDKWebViewFragment host or a
+    // custom presentation. When left null, the SDK closes its own
+    // FanMakerSDKWebView activity automatically. Mirrors `onClose` on iOS.
+    var onClose: ((params: HashMap<String, Any>?) -> Unit)? = null
 
     // ------------------------------------------------------------------------------------------------------
 

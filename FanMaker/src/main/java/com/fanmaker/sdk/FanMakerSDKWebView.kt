@@ -116,7 +116,10 @@ class FanMakerSDKWebView : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Register this activity so it can be finished from MainActivity callback
+        // Register this activity so legacy integrations can still finish it via the
+        // deprecated ActivityTracker. The SDK itself no longer needs this — it closes
+        // its own activity on the "close" action (see FanMakerSDK.onClose).
+        @Suppress("DEPRECATION")
         ActivityTracker.register(this)
 
         // Enable edge-to-edge display
@@ -340,7 +343,8 @@ class FanMakerSDKWebView : AppCompatActivity() {
                 this@FanMakerSDKWebView.runOnUiThread {
                     webView.evaluateJavascript(jsString, null)
                 }
-            }
+            },
+            onCloseRequested = { if (!isFinishing && !isDestroyed) finish() }
         )
 
         webView.addJavascriptInterface(jsInterface, "fanmaker")
@@ -546,7 +550,8 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // Unregister this activity
+        // Unregister this activity (kept for backward compat; see register()).
+        @Suppress("DEPRECATION")
         ActivityTracker.unregister(this)
         cameraExecutor.shutdown()
     }

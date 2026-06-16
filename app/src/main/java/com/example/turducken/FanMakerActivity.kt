@@ -7,14 +7,10 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.updatePadding
-import com.fanmaker.sdk.ActivityTracker
 
 class FanMakerActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Register this activity so it can be finished from MainActivity callback
-        ActivityTracker.register(this)
 
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -23,12 +19,6 @@ class FanMakerActivity : AppCompatActivity() {
 
         // Set up window insets handling
         setupWindowInsets()
-    }
-
-    override fun onDestroy() {
-        super.onDestroy()
-        // Unregister this activity
-        ActivityTracker.unregister(this)
     }
 
     private fun setupWindowInsets() {

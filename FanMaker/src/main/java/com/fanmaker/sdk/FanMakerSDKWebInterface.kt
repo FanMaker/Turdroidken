@@ -26,7 +26,11 @@ class FanMakerSDKWebInterface(
     private val onTriggerAction: (action: String, params: HashMap<String, Any>?) -> Unit = { action, params ->
         // Use the callback from SDK instance if available
         fanMakerSDK.onActionTriggered?.invoke(action, params)
-    }
+    },
+    // Host-provided default close behavior, invoked for the "close" action when the
+    // integrator has NOT set FanMakerSDK.onClose. The Activity finishes itself; the
+    // Fragment pops itself / finishes its host. This is how the SDK manages its own page.
+    private val onCloseRequested: () -> Unit = {}
 ) {
     private var locationManager: LocationManager? = null
     private var fanMakerSharedPreferences: FanMakerSharedPreferences = FanMakerSharedPreferences(mContext, fanMakerSDK.apiKey)
@@ -60,6 +64,18 @@ class FanMakerSDKWebInterface(
             null
         }
         onTriggerAction(action, parsedParams)
+
+        // The SDK manages closing its own page (see FanMakerSDK.onClose).
+        // - If the integrator set onClose, hand off to them and don't auto-dismiss.
+        // - Otherwise invoke the host's own close (the Activity finishes itself; the
+        //   Fragment pops itself / finishes its host) so integrations no longer need
+        //   ActivityTracker or any cross-activity finish().
+        if (action == "close") {
+            (mContext as? android.app.Activity)?.runOnUiThread {
+                val onClose = fanMakerSDK.onClose
+                if (onClose != null) onClose(parsedParams) else onCloseRequested()
+            }
+        }
     }
 
     @JavascriptInterface
