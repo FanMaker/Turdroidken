@@ -17,7 +17,6 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.updatePadding
-import com.fanmaker.sdk.ActivityTracker
 import com.fanmaker.sdk.FanMakerSDK
 import com.fanmaker.sdk.FanMakerSDKs
 import com.fanmaker.sdk.FanMakerSDKBeaconManager
@@ -74,13 +73,10 @@ class MainActivity : AppCompatActivity() {
             // Setup your own loading animation for the FanMakerSDKWebView activity
             // fanMakerSDK1!!.setLoadingAnimationDrawable(R.drawable.loilty_loading)
 
-            // Set up action trigger callback for SDK1 (FanMakerSDKWebView Activity)
-            fanMakerSDK1!!.onActionTriggered = { action, params ->
-                if (action == "close") {
-                    // Finish the FanMakerSDKWebView activity
-                    ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)
-                }
-            }
+            // The SDK now closes its own FanMakerSDKWebView when web content triggers
+            // the "close" action — no host code (and no ActivityTracker) is required.
+            // Optionally set onClose to handle dismissal yourself, e.g.:
+            // fanMakerSDK1!!.onClose = { params -> /* custom close handling */ }
         }
         if (fanMakerSDK2 != null) {
             // Enable location services for the SDK
@@ -91,13 +87,10 @@ class MainActivity : AppCompatActivity() {
             beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
             beaconManager2.fetchBeaconRegions()
 
-            // Set up action trigger callback for SDK2 (FanMakerActivity with Fragment)
-            fanMakerSDK2!!.onActionTriggered = { action, params ->
-                if (action == "close") {
-                    // Finish the FanMakerActivity
-                    ActivityTracker.finishActivity(FanMakerActivity::class.java)
-                }
-            }
+            // The SDK now closes the FanMakerSDKWebViewFragment's host on the "close"
+            // action — no host code (and no ActivityTracker) is required. Optionally set
+            // onClose to control dismissal yourself, e.g.:
+            // fanMakerSDK2!!.onClose = { params -> /* custom close handling */ }
         }
 
         // Check if this intent is started via a deep link

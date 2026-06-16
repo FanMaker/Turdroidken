@@ -7,6 +7,13 @@ import java.util.concurrent.ConcurrentHashMap
  * Helper class to track activities and allow finishing them from anywhere
  * Similar to NotificationCenter pattern in Swift
  */
+@Deprecated(
+    message = "The FanMaker SDK now closes its own FanMakerSDKWebView automatically when web " +
+        "content triggers the \"close\" action, so manually finishing the activity via " +
+        "ActivityTracker is no longer required. To run custom close logic, or to dismiss a " +
+        "FanMakerSDKWebViewFragment host yourself, set FanMakerSDK.onClose instead. Retained " +
+        "for backward compatibility; will be removed in a future release."
+)
 object ActivityTracker {
     private val activities = ConcurrentHashMap<Class<out Activity>, Activity>()
     

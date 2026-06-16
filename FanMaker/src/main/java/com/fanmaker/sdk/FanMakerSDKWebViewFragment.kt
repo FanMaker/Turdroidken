@@ -312,6 +312,12 @@ class FanMakerSDKWebViewFragment : Fragment() {
                 getActivity()?.runOnUiThread {
                     webView.evaluateJavascript(jsString, null)
                 }
+            },
+            onCloseRequested = {
+                if (isAdded) {
+                    if (parentFragmentManager.backStackEntryCount > 0) parentFragmentManager.popBackStack()
+                    else activity?.finish()
+                }
             }
         )
 

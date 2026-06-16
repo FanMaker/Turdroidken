@@ -117,7 +117,7 @@ allprojects {
 - inside dependencies of the build.gradle of app module, use the following code
 ```markdown
 dependencies {
-    implementation 'com.fanmaker.sdk:fanmaker:4.0.2'
+    implementation 'com.fanmaker.sdk:fanmaker:4.0.3'
 	...
 }
 ```
@@ -235,83 +235,41 @@ fun openFanMakerSDKWebViewFragment(view: View) {
 
 ### Closing the SDK from Web Content
 
-The FanMaker SDK provides a `triggerAction()` JavaScript method that allows web content to trigger actions in the host app, such as closing the SDK. This is useful for implementing custom close buttons or programmatic dismissal from your web content.
+FanMaker web content can request that the SDK UI be dismissed by triggering a `close` action via `triggerAction()`. **The SDK handles this itself** — you do not need to write any close-handling code:
 
-#### Setting Up the Close Action Handler
+- In **Activity** mode, `FanMakerSDKWebView` finishes itself.
+- In **Fragment** mode, `FanMakerSDKWebViewFragment` pops its back stack, or finishes its host activity if there is nothing to pop.
 
-In your `MainActivity` (or wherever you initialize your SDK instances), set up the `onActionTriggered` callback to handle the "close" action:
+No `ActivityTracker`, and no cross-activity `finish()`, is required.
+
+#### Handling the close yourself
+
+By default the SDK dismisses itself, so most integrations need no close code at all. If you want to run your own logic on close — a custom presentation, or deciding how a fragment host should close — set `onClose`. When `onClose` is set, the SDK will **not** auto-dismiss and hands control to you:
 
 ```
-import com.fanmaker.sdk.ActivityTracker
-import com.fanmaker.sdk.FanMakerSDKWebView
-
-class MainActivity : AppCompatActivity() {
-    var fanMakerSDK1: FanMakerSDK? = null
-    var fanMakerSDK2: FanMakerSDK? = null
-
-    lateinit var fanmakerIntent1: Intent
-    lateinit var fanmakerIntent2: Intent
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
-
-        // Initialize SDK instances
-        FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
-        FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
-
-        fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey1")
-        fanMakerSDK2 = FanMakerSDKs.getInstance("devDefinedKey2")
-
-        // Create intents
-        fanmakerIntent1 = Intent(this, FanMakerSDKWebView::class.java).apply {
-            putExtra("fanMakerKey", "devDefinedKey1")
-        }
-        fanmakerIntent2 = Intent(this, FanMakerActivity::class.java).apply {
-            putExtra("fanMakerKey", "devDefinedKey2")
-        }
-
-        // Set up close action handler for Activity (FanMakerSDKWebView)
-        fanMakerSDK1?.onActionTriggered = { action, params ->
-            if (action == "close") {
-                // Close the FanMakerSDKWebView activity
-                ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)
-            }
-        }
-
-        // Set up close action handler for Fragment (FanMakerActivity)
-        fanMakerSDK2?.onActionTriggered = { action, params ->
-            if (action == "close") {
-                // Close the FanMakerActivity containing the fragment
-                ActivityTracker.finishActivity(FanMakerActivity::class.java)
-            }
-        }
-    }
+fanMakerSDK.onClose = { params ->
+    // Your own dismissal logic (pop a nav controller, hide a sheet, finish(), etc.)
 }
 ```
 
-**Note**: The `ActivityTracker` utility automatically handles activity registration for `FanMakerSDKWebView` and activities containing `FanMakerSDKWebViewFragment`. No additional setup is required.
+The `params` argument is the `HashMap<String, Any>?` parsed from the JSON the web content passed with the action.
 
-#### Handling Parameters in the Callback
+#### Deprecated: handling `close` in `onActionTriggered` + `ActivityTracker`
 
-The `params` parameter in the callback is a `HashMap<String, Any>?` that contains the parsed JSON object:
+**⚠️ Deprecated.** Before the SDK self-closed, integrations had to detect the `close` action inside `onActionTriggered` and finish the activity themselves via the `ActivityTracker` helper:
 
 ```
+// No longer needed — the SDK now closes itself.
 fanMakerSDK1?.onActionTriggered = { action, params ->
     if (action == "close") {
-        // Access parameters if provided
-        val message = params?.get("message") as? String
-        val reason = params?.get("reason") as? String
-
-        Log.d("FanMaker", "Closing SDK. Message: $message, Reason: $reason")
-
-        // Close the activity
         ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)
     }
 }
 ```
 
-#### Custom Loading Animation
+This pattern is no longer necessary. `ActivityTracker` is retained for backward compatibility but is **deprecated and will be removed in a future release**. Remove any `ActivityTracker.finishActivity(...)` calls (and the `import com.fanmaker.sdk.ActivityTracker`) from your integration; set `onClose` instead if you need custom handling.
+
+### Custom Loading Animation
 
 By default the FanMaker SDK displays a standard loading spinner while the WebView is loading. You can customize the loading animation. To replace the default spinner with your own animation, create an `animation-list` drawable in your app's `res/drawable/` directory:
 
