@@ -109,6 +109,11 @@ class MainActivity : AppCompatActivity() {
         // persistence across process death. grep logcat for [SdkProbe].
         window.decorView.post { SdkOrderingProbe.run(this) }
 
+        // Push deep-link routing: which URLs the SDK claims, which it refuses.
+        // grep logcat for [LinkProbe].
+        DeepLinkRoutingProbe.checkPersistence(this)
+        window.decorView.post { DeepLinkRoutingProbe.run(this) }
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
