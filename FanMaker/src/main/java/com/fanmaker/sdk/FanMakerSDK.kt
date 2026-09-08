@@ -83,7 +83,7 @@ class FanMakerSDK(
     var loadingAnimationDrawable: Int? = null,
     var requestTimeoutMs: Int = 10000,
     var requestMaxRetries: Int = com.android.volley.DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
-    var locationEnabled: Boolean = false,
+    private var _locationEnabled: Boolean = false,
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",
     var deepLinkUrl: String = "",
@@ -91,41 +91,54 @@ class FanMakerSDK(
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
+    // Whether the observed lifecycle is currently resumed, and whether an auto
+    // checkin ping has already been attempted this session. Together these let
+    // enableLocationTracking recover a ping that onResume dropped because
+    // locationEnabled was still false.
+    private var isForegrounded = false
+    private var locationPingAttempted = false
+
     // Property observers for identifiers
     var userID: String
         get() = _userID
         set(value) {
             _userID = value
+            persistIdentifier(KEY_USER_ID, value)
         }
 
     var memberID: String
         get() = _memberID
         set(value) {
             _memberID = value
+            persistIdentifier(KEY_MEMBER_ID, value)
         }
 
     var studentID: String
         get() = _studentID
         set(value) {
             _studentID = value
+            persistIdentifier(KEY_STUDENT_ID, value)
         }
 
     var ticketmasterID: String
         get() = _ticketmasterID
         set(value) {
             _ticketmasterID = value
+            persistIdentifier(KEY_TICKETMASTER_ID, value)
         }
 
     var yinzid: String
         get() = _yinzid
         set(value) {
             _yinzid = value
+            persistIdentifier(KEY_YINZID, value)
         }
 
     var pushNotificationToken: String
         get() = _pushNotificationToken
         set(value) {
             _pushNotificationToken = value
+            persistIdentifier(KEY_PUSH_TOKEN, value)
         }
 
     var arbitraryIdentifiers: ObservableHashMap<String, String>
@@ -135,8 +148,28 @@ class FanMakerSDK(
             _arbitraryIdentifiers.putAll(value)
         }
 
+    // Assigning this is the documented way to turn Auto Checkin on, so the
+    // catch-up ping lives here rather than only in enableLocationTracking().
+    var locationEnabled: Boolean
+        get() = _locationEnabled
+        set(value) {
+            val wasDisabled = !_locationEnabled
+            _locationEnabled = value
+
+            // The SDK is a DefaultLifecycleObserver. A host that registers it
+            // against an already-RESUMED lifecycle gets onResume synchronously,
+            // which is often before it has enabled location tracking - and
+            // because this defaults to false, that first ping is dropped and
+            // nothing ever re-fires it, so cold start never auto-checks-in.
+            // Recover it here instead of depending on integrator call order.
+            if (value && wasDisabled && isForegrounded && !locationPingAttempted) {
+                Log.i("FanMakerSDK", "location tracking enabled after onResume; sending the ping it missed")
+                sendLocationPing()
+            }
+        }
+
     init {
-        _arbitraryIdentifiers = ObservableHashMap { }
+        _arbitraryIdentifiers = ObservableHashMap { persistArbitraryIdentifiers() }
     }
 
     lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
@@ -159,6 +192,62 @@ class FanMakerSDK(
         this.apiKey = apiKey
         this.context = context
         fanMakerSharedPreferences = FanMakerSharedPreferences(context, this.apiKey)
+        restoreIdentifiers()
+    }
+
+    // Identifiers are written by the host (usually once, at login) and by the
+    // web bridge via setIdentifiers. They used to live only in memory, so every
+    // one of them was silently dropped on process death and the host had to
+    // re-supply them on each cold start. Persist on write, rehydrate on
+    // initialize.
+    private fun persistIdentifier(key: String, value: String) {
+        if (::fanMakerSharedPreferences.isInitialized) {
+            fanMakerSharedPreferences.putString(key, value)
+        }
+    }
+
+    private fun persistArbitraryIdentifiers() {
+        if (!::fanMakerSharedPreferences.isInitialized) return
+        val encoded = try {
+            Json.encodeToString(
+                MapSerializer(String.serializer(), String.serializer()),
+                HashMap(_arbitraryIdentifiers)
+            )
+        } catch (e: Exception) {
+            Log.e("FanMakerSDK", "could not persist arbitrary identifiers: ${e.message}")
+            return
+        }
+        fanMakerSharedPreferences.putString(KEY_ARBITRARY_IDENTIFIERS, encoded)
+    }
+
+    // A value supplied to the constructor is more current than anything left in
+    // prefs by an earlier session, so only empty fields are rehydrated.
+    private fun restoredValue(key: String, current: String): String =
+        if (current.isNotEmpty()) current
+        else fanMakerSharedPreferences.getString(key, current) ?: current
+
+    private fun restoreIdentifiers() {
+        _userID = restoredValue(KEY_USER_ID, _userID)
+        _memberID = restoredValue(KEY_MEMBER_ID, _memberID)
+        _studentID = restoredValue(KEY_STUDENT_ID, _studentID)
+        _ticketmasterID = restoredValue(KEY_TICKETMASTER_ID, _ticketmasterID)
+        _yinzid = restoredValue(KEY_YINZID, _yinzid)
+        _pushNotificationToken = restoredValue(KEY_PUSH_TOKEN, _pushNotificationToken)
+
+        val encoded = fanMakerSharedPreferences.getString(KEY_ARBITRARY_IDENTIFIERS, "")
+        if (_arbitraryIdentifiers.isEmpty() && !encoded.isNullOrEmpty()) {
+            try {
+                val decoded = Json.decodeFromString(
+                    MapSerializer(String.serializer(), String.serializer()),
+                    encoded
+                )
+                // super.putAll would skip the observer; going through the map is
+                // fine, it just rewrites what was read.
+                _arbitraryIdentifiers.putAll(decoded)
+            } catch (e: Exception) {
+                Log.e("FanMakerSDK", "could not restore arbitrary identifiers: ${e.message}")
+            }
+        }
     }
 
     fun updateBaseUrl(url: String) {
@@ -345,6 +434,8 @@ class FanMakerSDK(
     // established in the main activity.
     // @OnLifecycleEvent(Lifecycle.Event.ON_RESUME)
     override fun onResume(owner: LifecycleOwner) {
+        isForegrounded = true
+
         // Send app event
         val appAction = if (this.firstLaunch) "app_launch" else "app_resume"
         sendAppEvent(appAction)
@@ -353,8 +444,11 @@ class FanMakerSDK(
         if (this.firstLaunch) { this.firstLaunch = false }
 
         // Send location ping for auto checkin
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
         sendLocationPing()
+    }
+
+    override fun onPause(owner: LifecycleOwner) {
+        isForegrounded = false
     }
 
     private fun sendAppEvent(appAction: String) {
@@ -369,43 +463,77 @@ class FanMakerSDK(
     }
 
     private fun sendLocationPing() {
-        // Check if permission is granted
-        if (isLocationTrackingEnabled() && ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
-            && ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+        if (!::context.isInitialized) {
+            Log.e("FanMakerSDK", "auto checkin skipped: SDK not initialized yet (call initialize first)")
+            return
+        }
 
-            // Request location updates
-            @Suppress("DEPRECATION")
-            val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
-                .setMaxUpdateDelayMillis(10000)
-                .build()
+        // These three used to share one "Location permission not granted"
+        // message, which reported a permission problem for a tracking-disabled
+        // SDK whose permissions were perfectly fine.
+        if (!isLocationTrackingEnabled()) {
+            Log.e("FanMakerSDK", "auto checkin skipped: location tracking disabled (call enableLocationTracking)")
+            return
+        }
+        val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ActivityCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!fineGranted || !coarseGranted) {
+            val missing = listOfNotNull(
+                if (!fineGranted) "ACCESS_FINE_LOCATION" else null,
+                if (!coarseGranted) "ACCESS_COARSE_LOCATION" else null
+            ).joinToString(", ")
+            Log.e("FanMakerSDK", "auto checkin skipped: location permission not granted ($missing)")
+            return
+        }
 
-            locationRequest?.let {
-                fusedLocationClient.getCurrentLocation(it.priority, null)
-                .addOnSuccessListener { location: Location? ->
-                    location?.let {
-                        // Use the location object here
-                        if (it.latitude != 0.0 && it.longitude != 0.0) {
-                            // Read token INSIDE the callback so we get the latest value
-                            // (a prior refresh from sendAppEvent may have updated it)
-                            val userToken = fanMakerSharedPreferences.getString("token", "")
-                            if (userToken!!.isNotEmpty()) {
-                                val http = FanMakerSDKHttp(this, context, userToken)
-                                val params = HashMap<String, String>()
-                                params["latitude"] = it.latitude.toString()
-                                params["longitude"] = it.longitude.toString()
+        // Initialized here rather than in onResume so a catch-up ping from
+        // enableLocationTracking cannot hit an uninitialized lateinit.
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(context)
+        locationPingAttempted = true
 
-                                http.post("events/auto_checkin", params,
-                                    { response -> Log.w("FanMakerSDK", "######## AUTO CHECKIN: Success") },
-                                    { errorCode, errorMessage -> Log.e("FanMakerSDK", "######## AUTO CHECKIN: Failed ($errorCode) $errorMessage") }
-                                )
-                            }
+        // Request location updates
+        @Suppress("DEPRECATION")
+        val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10000)
+            .setMaxUpdateDelayMillis(10000)
+            .build()
+
+        locationRequest?.let {
+            fusedLocationClient.getCurrentLocation(it.priority, null)
+            .addOnSuccessListener { location: Location? ->
+                location?.let {
+                    // Use the location object here
+                    if (it.latitude != 0.0 && it.longitude != 0.0) {
+                        // Read token INSIDE the callback so we get the latest value
+                        // (a prior refresh from sendAppEvent may have updated it)
+                        val userToken = fanMakerSharedPreferences.getString("token", "")
+                        if (userToken!!.isNotEmpty()) {
+                            val http = FanMakerSDKHttp(this, context, userToken)
+                            val params = HashMap<String, String>()
+                            params["latitude"] = it.latitude.toString()
+                            params["longitude"] = it.longitude.toString()
+
+                            http.post("events/auto_checkin", params,
+                                { response -> Log.w("FanMakerSDK", "######## AUTO CHECKIN: Success") },
+                                { errorCode, errorMessage -> Log.e("FanMakerSDK", "######## AUTO CHECKIN: Failed ($errorCode) $errorMessage") }
+                            )
                         }
                     }
                 }
             }
-        } else {
-            Log.e("FanMakerSDK", "Location permission not granted")
         }
+    }
+
+    companion object {
+        // SharedPreferences keys for persisted identifiers. The prefs file is
+        // already namespaced per instance by api key, so these need no prefix
+        // beyond staying clear of "token".
+        private const val KEY_USER_ID = "identifier_user_id"
+        private const val KEY_MEMBER_ID = "identifier_member_id"
+        private const val KEY_STUDENT_ID = "identifier_student_id"
+        private const val KEY_TICKETMASTER_ID = "identifier_ticketmaster_id"
+        private const val KEY_YINZID = "identifier_yinzid"
+        private const val KEY_PUSH_TOKEN = "identifier_push_notification_token"
+        private const val KEY_ARBITRARY_IDENTIFIERS = "identifier_arbitrary"
     }
 }
 
