@@ -22,6 +22,18 @@ android {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        // Minified build type. The SDK ships consumer-rules.pro, but nothing in
+        // this repo ever ran R8, so no keep rule was ever exercised and
+        // consumer-rules.pro sat empty and unnoticed. This build type is the
+        // regression harness for that: it minifies, and it is debug-signed so
+        // it installs on a device without release keys.
+        minified {
+            initWith release
+            minifyEnabled true
+            shrinkResources true
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+        }
     }
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
@@ -61,8 +73,13 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.android.volley:volley:1.2.1'
-    // implementation project(':FanMaker')
-    implementation 'com.fanmaker.sdk:fanmaker:4.0.3'
+    // ./gradlew -PuseLocalSdk ... builds against the SDK sources in this repo
+    // instead of the published AAR, so SDK changes can be verified end to end.
+    if (project.hasProperty('useLocalSdk')) {
+        implementation project(':FanMaker')
+    } else {
+        implementation 'com.fanmaker.sdk:fanmaker:4.0.3'
+    }
 
     // Updated test dependencies
     testImplementation 'junit:junit:4.13.2'

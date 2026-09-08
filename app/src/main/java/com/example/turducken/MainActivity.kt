@@ -100,6 +100,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Reports whether R8 stripped AltBeacon's reflectively-built RSSI filter.
+        // grep logcat for [BeaconProbe]. See FanMaker/consumer-rules.pro.
+        BeaconMinificationProbe.run()
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
