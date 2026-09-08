@@ -104,6 +104,11 @@ class MainActivity : AppCompatActivity() {
         // grep logcat for [BeaconProbe]. See FanMaker/consumer-rules.pro.
         BeaconMinificationProbe.run()
 
+        // Reproduces a third-party host's call order (observer registered
+        // against an already-RESUMED lifecycle) and checks identifier
+        // persistence across process death. grep logcat for [SdkProbe].
+        window.decorView.post { SdkOrderingProbe.run(this) }
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
