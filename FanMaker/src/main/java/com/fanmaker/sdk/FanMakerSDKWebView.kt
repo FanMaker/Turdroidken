@@ -167,6 +167,43 @@ class FanMakerSDKWebView : AppCompatActivity() {
             return
         }
 
+        // A push tap can name its destination directly on the launch intent,
+        // rather than requiring the host to reach into the SDK instance before
+        // starting this activity - which a cold-start tap often cannot do,
+        // because nothing has initialized the SDK yet.
+        //
+        // This activity is android:exported="true", so the extra is UNTRUSTED:
+        // any app on the device can start us. It is validated before use, and
+        // must never be handed to loadUrl directly. It matters because the
+        // webview sends the fan's identifiers as request headers and the page
+        // can read the identifier lexicon and session token back through the
+        // JS bridge - so honouring an arbitrary URL here would hand those to
+        // whoever asked.
+        intent.getStringExtra("fanMakerDeepLink")?.let { requested ->
+            when {
+                // A genuine path is safe: it can only ever be resolved against
+                // our own base URL. openPath rejects anything that smuggles in a
+                // host, so its result is what decides here.
+                requested.startsWith("/") ->
+                    if (fanMakerSDK.openPath(requested)) {
+                        Log.i("FanMakerSDKWebView", "deep link from intent: $requested")
+                    } else {
+                        Log.e(
+                            "FanMakerSDKWebView",
+                            "ignoring fanMakerDeepLink extra, not a usable path: $requested"
+                        )
+                    }
+                // A full URL is only honoured if the SDK claims it.
+                fanMakerSDK.handleUrl(requested) ->
+                    Log.i("FanMakerSDKWebView", "deep link from intent: $requested")
+                else ->
+                    Log.e(
+                        "FanMakerSDKWebView",
+                        "ignoring fanMakerDeepLink extra, not a first-party destination: $requested"
+                    )
+            }
+        }
+
         fanMakerSharedPreferences = FanMakerSharedPreferences(getApplicationContext(), fanMakerSDK!!.apiKey)
 
         viewBinding = FanmakerSdkWebviewBinding.inflate(layoutInflater)

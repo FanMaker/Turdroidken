@@ -86,7 +86,7 @@ class FanMakerSDK(
     private var _locationEnabled: Boolean = false,
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",
-    var deepLinkUrl: String = "",
+    private var _deepLinkUrl: String = "",
 ) : DefaultLifecycleObserver {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
@@ -146,6 +146,15 @@ class FanMakerSDK(
         set(value) {
             _arbitraryIdentifiers.clear()
             _arbitraryIdentifiers.putAll(value)
+        }
+
+    // A pending deep link destination, persisted so a push tap that starts a
+    // cold process does not lose it before the webview is ready to consume it.
+    var deepLinkUrl: String
+        get() = _deepLinkUrl
+        set(value) {
+            _deepLinkUrl = value
+            persistIdentifier(KEY_DEEP_LINK, value)
         }
 
     // Assigning this is the documented way to turn Auto Checkin on, so the
@@ -234,6 +243,7 @@ class FanMakerSDK(
         _ticketmasterID = restoredValue(KEY_TICKETMASTER_ID, _ticketmasterID)
         _yinzid = restoredValue(KEY_YINZID, _yinzid)
         _pushNotificationToken = restoredValue(KEY_PUSH_TOKEN, _pushNotificationToken)
+        _deepLinkUrl = restoredValue(KEY_DEEP_LINK, _deepLinkUrl)
 
         val encoded = fanMakerSharedPreferences.getString(KEY_ARBITRARY_IDENTIFIERS, "")
         if (_arbitraryIdentifiers.isEmpty() && !encoded.isNullOrEmpty()) {
@@ -381,9 +391,81 @@ class FanMakerSDK(
         return headers
     }
 
+    /**
+     * True when [host] is somewhere we are willing to load inside our own
+     * webview: the site's own NUX host, or one the site's allowed_domains
+     * names.
+     *
+     * Deliberately fails CLOSED - an unknown host is not first-party. That is
+     * the opposite of [isExternalWebUrl], which fails open, and the asymmetry
+     * is intentional: isExternalWebUrl decides whether to eject a link that a
+     * page we already trust asked us to follow, so not knowing means "carry
+     * on as before". This decides whether to admit a destination we were
+     * handed from outside, where not knowing has to mean "no".
+     */
+    private fun isFirstPartyHost(host: String?): Boolean {
+        if (host.isNullOrEmpty()) return false
+        val lower = host.lowercase()
+        if (allowedDomains.contains(lower)) return true
+        return Uri.parse(baseUrl).host?.lowercase() == lower
+    }
+
+    /**
+     * True when the SDK is willing to route [url] into the FanMaker webview.
+     *
+     * Historically this was only true for a literal `fanmaker` hostname, so a
+     * link reached NUX only if the integrator happened to shape it as
+     * `scheme://fanmaker/<path>`. A push notification's click_action normally
+     * carries a real https URL instead, which was silently rejected.
+     */
     fun canOpenUrl(url: String): Boolean {
-        val urlHost = Uri.parse(url).host?.lowercase()
-        return urlHost == "fanmaker" || urlHost == "fanmaker.com"
+        val uri = Uri.parse(url)
+        val urlHost = uri.host?.lowercase()
+
+        // Legacy form: any scheme whose host is literally fanmaker. Kept
+        // working so existing integrations do not have to change.
+        if (urlHost == "fanmaker" || urlHost == "fanmaker.com") return true
+
+        // A first-party web link - our own NUX host or one of the site's
+        // allowed domains. This is the shape a push click_action arrives in.
+        val scheme = uri.scheme?.lowercase()
+        if (scheme == "http" || scheme == "https") return isFirstPartyHost(urlHost)
+
+        return false
+    }
+
+    /**
+     * Queue [path] as the next destination inside the FanMaker webview, with
+     * no hostname convention at all - `openPath("/store")` is enough.
+     *
+     * This is the escape hatch for a host that knows a link is ours and should
+     * not have to encode that knowledge as a magic hostname, and for push
+     * payloads that carry a bare path.
+     */
+    fun openPath(path: String): Boolean {
+        val trimmed = path.trim()
+        if (trimmed.isEmpty()) {
+            Log.e("FanMakerSDK", "openPath called with an empty path; ignoring")
+            return false
+        }
+
+        // A path must not carry a destination of its own. "//host/x" is
+        // protocol-relative rather than a path - Uri resolves everything after
+        // the // as an authority - so accepting it would let a caller point the
+        // webview at a host of their choosing. Same for anything with an
+        // explicit scheme; that is handleUrl's job, and it checks the host.
+        val uri = Uri.parse(trimmed)
+        if (trimmed.startsWith("//") || uri.scheme != null || uri.authority != null) {
+            Log.e(
+                "FanMakerSDK",
+                "openPath expects a path such as /store, got something with a " +
+                    "host or scheme: $trimmed (use handleUrl for a full URL)"
+            )
+            return false
+        }
+
+        this.deepLinkUrl = if (trimmed.startsWith("/")) trimmed else "/$trimmed"
+        return true
     }
 
     fun loginUserFromParamsSync(onComplete: (Boolean) -> Unit) {
@@ -455,9 +537,15 @@ class FanMakerSDK(
                 val query = deepLinkComponents.query
 
                 val newUrl = Uri.parse(this.baseUrl).buildUpon()
-                path?.let { newUrl.appendEncodedPath(it) }
+                // Uri.path always carries a leading slash and appendEncodedPath
+                // adds its own separator, so passing it straight through
+                // produced a doubled slash - https://host//store - on every
+                // deep link the SDK has ever composed, legacy shape included.
+                path?.trim('/')?.takeIf { it.isNotEmpty() }?.let { newUrl.appendEncodedPath(it) }
                 query?.let { newUrl.encodedQuery(it) }
 
+                // Consumed - clear it, and the persisted copy with it, so a
+                // later cold start does not replay a stale destination.
                 this.deepLinkUrl = ""
 
                 onUrlReady(newUrl.toString())
@@ -470,14 +558,24 @@ class FanMakerSDK(
         }
     }
 
-    fun handleUrl(url: String) {
-        if (canOpenUrl(url)) {
-            val urlComponents = Uri.parse(url)
-            val path = urlComponents.path
-            val query = urlComponents.query
-
-            this.deepLinkUrl = url
+    /**
+     * Hand a URL to the SDK. Returns whether the SDK claimed it, so a host can
+     * fall through to its own handling when it did not.
+     *
+     * This used to return Unit and drop unclaimed URLs in silence, which gave
+     * an integrator no way to tell "handled" from "ignored".
+     */
+    fun handleUrl(url: String): Boolean {
+        if (!canOpenUrl(url)) {
+            Log.i(
+                "FanMakerSDK",
+                "deep link not claimed: $url (host is not fanmaker and not a " +
+                    "known first-party host; use openPath() if this is ours)"
+            )
+            return false
         }
+        this.deepLinkUrl = url
+        return true
     }
 
     // This function is called when the app is resumed assuming we have a lifecycle observer
@@ -584,6 +682,7 @@ class FanMakerSDK(
         private const val KEY_YINZID = "identifier_yinzid"
         private const val KEY_PUSH_TOKEN = "identifier_push_notification_token"
         private const val KEY_ARBITRARY_IDENTIFIERS = "identifier_arbitrary"
+        private const val KEY_DEEP_LINK = "pending_deep_link"
     }
 }
 
