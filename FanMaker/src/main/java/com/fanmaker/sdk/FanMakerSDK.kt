@@ -193,6 +193,7 @@ class FanMakerSDK(
         this.context = context
         fanMakerSharedPreferences = FanMakerSharedPreferences(context, this.apiKey)
         restoreIdentifiers()
+        restoreAllowedDomains()
     }
 
     // Identifiers are written by the host (usually once, at login) and by the
@@ -252,6 +253,55 @@ class FanMakerSDK(
 
     fun updateBaseUrl(url: String) {
         this.baseUrl = url
+    }
+
+    // First-party hosts (lowercased) the app may open inside the SDK webview.
+    // Populated from the `site_details/sdk` response and persisted so a
+    // cold-start push tap can classify external links before the next fetch.
+    // See FanMaker/app#1885.
+    var allowedDomains: List<String> = emptyList()
+        private set
+
+    private val ALLOWED_DOMAINS_KEY = "allowed_domains"
+
+    /** Store the first-party host allowlist (from site_details/sdk) + persist it. */
+    fun updateAllowedDomains(domains: List<String>) {
+        allowedDomains = domains.mapNotNull { normalizeHost(it) }
+        if (::fanMakerSharedPreferences.isInitialized) {
+            fanMakerSharedPreferences.putString(ALLOWED_DOMAINS_KEY, allowedDomains.joinToString(","))
+        }
+    }
+
+    /** Restore the persisted allowlist into memory. Call after initialize(). */
+    fun restoreAllowedDomains() {
+        if (!::fanMakerSharedPreferences.isInitialized) return
+        val stored = fanMakerSharedPreferences.getString(ALLOWED_DOMAINS_KEY, "") ?: ""
+        allowedDomains = stored.split(",").mapNotNull { normalizeHost(it) }
+    }
+
+    private fun normalizeHost(value: String): String? {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) return null
+        val host = if (trimmed.contains("://")) Uri.parse(trimmed).host else trimmed.substringBefore("/")
+        return host?.lowercase()?.ifEmpty { null }
+    }
+
+    /**
+     * True when [url] is an http(s) link whose host is NOT first-party (not in
+     * the allowlist nor the currently loaded base host), and so should be opened
+     * in the system browser rather than routed into the in-app webview.
+     * Custom-scheme URLs and relative paths return false. See FanMaker/app#1885.
+     */
+    fun isExternalWebUrl(url: String): Boolean {
+        val uri = Uri.parse(url)
+        val scheme = uri.scheme?.lowercase()
+        if (scheme != "http" && scheme != "https") return false
+        val host = uri.host?.lowercase() ?: return false
+
+        val allowed = allowedDomains.toMutableList()
+        Uri.parse(baseUrl).host?.lowercase()?.let { allowed.add(it) }
+        if (allowed.isEmpty()) return false
+        return !allowed.contains(host)
     }
 
     fun isInitialized(): Boolean {

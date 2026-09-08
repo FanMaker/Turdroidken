@@ -360,6 +360,14 @@ class FanMakerSDKWebView : AppCompatActivity() {
                     val sdk_url = data.getString("url")
                     fanMakerSDK!!.updateBaseUrl(sdk_url)
 
+                    // First-party host allowlist for push deep-link routing.
+                    // See FanMaker/app#1885.
+                    val allowedDomainsJson = data.optJSONArray("allowed_domains")
+                    if (allowedDomainsJson != null) {
+                        val domains = (0 until allowedDomainsJson.length()).map { allowedDomainsJson.getString(it) }
+                        fanMakerSDK!!.updateAllowedDomains(domains)
+                    }
+
                     fanMakerSDK!!.formatUrl { formattedUrl ->
                         webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
                     }
