@@ -773,6 +773,96 @@ class MainActivity : AppCompatActivity() {
     }
 ```
 
+## Upgrading from 4.0.x
+
+**This is a drop-in update.** Nothing was removed or changed shape: the public API
+of the AAR is purely additive against 4.0.3, verified by diffing the compiled
+class surface. Existing integrations compile and link unchanged, including code
+already compiled against 4.0.3 such as a vendored copy inside a third-party
+plugin. No code change is required.
+
+There are, however, four behaviour changes worth knowing about, because they
+take effect on update whether or not you touch your code.
+
+### Identifiers now survive process death — call `clearIdentifiers()` on sign-out
+
+Identifiers used to live only in memory, so they were lost whenever the app
+process was killed and had to be re-supplied on every cold start. They are now
+persisted and rehydrated, which is what most integrations expected all along.
+
+The consequence is that **process death is no longer an implicit reset.** If your
+app signs a fan out by simply not setting identifiers again, the SDK will still
+be holding the previous fan's values. Add an explicit reset to your sign-out
+path:
+
+```
+fanMakerSDK?.clearIdentifiers()
+```
+
+This matters most where a second fan can sign in on the same device and supplies
+fewer identifiers than the first — without the call, they inherit the leftovers.
+Note the FanMaker session token has always persisted, so this brings identifiers
+in line with it rather than introducing something new.
+
+A value you pass to the constructor still wins over a persisted one, so only
+empty fields are ever rehydrated.
+
+### Deep links are claimed more broadly
+
+`canOpenUrl` used to return true only for a literal `fanmaker` hostname. It now
+also claims a first-party web link — an `http(s)` URL whose host is your NUX
+host or one of the site's allowed domains. The literal `fanmaker` form keeps
+working.
+
+If your app asks `canOpenUrl` before deciding where a link goes, a first-party
+link that previously fell through to your own browser handling will now open
+inside the FanMaker webview. That is the intended fix, but it is a routing
+change on update.
+
+`handleUrl` still returns `Unit` and ignores whether the URL was claimed. Use
+the new `openUrl` when you want that answer:
+
+```
+if (!fanMakerSDK!!.openUrl(url)) {
+    // not ours - handle it yourself
+}
+```
+
+And `openPath` queues a destination with no hostname convention at all, which is
+usually what you want for a push notification's `click_action`:
+
+```
+fanMakerSDK?.openPath("/store")
+```
+
+A queued destination is persisted so a push tap that starts a cold process does
+not lose it, and is discarded after ten minutes so one that was never opened
+cannot resurface on an unrelated launch.
+
+### Auto Checkin recovers a ping it used to drop
+
+If you enable location tracking *after* registering the lifecycle observer, the
+first ping used to be lost for the whole session, because `locationEnabled`
+defaults to false and nothing re-fired it. Enabling tracking while the app is
+foregrounded now sends that ping.
+
+Expect one `events/auto_checkin` request on cold start where previously there
+was none. Call order no longer matters, so the ordering advice elsewhere in this
+README is now a preference rather than a requirement.
+
+### Composed deep link URLs lost a stray slash
+
+`formatUrl` produced a doubled slash — `https://host//store` — for every deep
+link, including the legacy shape. It now produces `https://host/store`. Only
+relevant if something on your side matched on the old form.
+
+### Minification
+
+The SDK now ships consumer ProGuard rules. If you enabled R8 or ProGuard, beacon
+ranging previously crashed your process; that is fixed, and the rules are applied
+automatically. If you added the AltBeacon `RssiFilter` keep rule to your own
+`proguard-rules.pro` as a workaround, it is harmless to leave in place.
+
 ## Upgrading to 2.0 from 1.x
 
 ### Step 1:

@@ -194,7 +194,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
                         )
                     }
                 // A full URL is only honoured if the SDK claims it.
-                fanMakerSDK.handleUrl(requested) ->
+                fanMakerSDK.openUrl(requested) ->
                     Log.i("FanMakerSDKWebView", "deep link from intent: $requested")
                 else ->
                     Log.e(

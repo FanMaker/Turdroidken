@@ -155,6 +155,12 @@ class FanMakerSDK(
         set(value) {
             _deepLinkUrl = value
             persistIdentifier(KEY_DEEP_LINK, value)
+            if (::fanMakerSharedPreferences.isInitialized) {
+                fanMakerSharedPreferences.putLong(
+                    KEY_DEEP_LINK_AT,
+                    if (value.isEmpty()) 0L else System.currentTimeMillis()
+                )
+            }
         }
 
     // Assigning this is the documented way to turn Auto Checkin on, so the
@@ -230,6 +236,36 @@ class FanMakerSDK(
         fanMakerSharedPreferences.putString(KEY_ARBITRARY_IDENTIFIERS, encoded)
     }
 
+    /**
+     * Forget every identifier, in memory and on disk. Call this when a fan
+     * signs out of the host app.
+     *
+     * This exists because identifiers now persist. Before that they were
+     * memory-only, so process death cleared them and an integration could
+     * "log out" simply by not setting them again on the next launch. That is
+     * no longer true: without this call, a fan who signs out and is replaced
+     * by someone who supplies fewer identifiers would inherit the leftovers of
+     * the previous fan. The session token has always persisted, so this brings
+     * identifiers in line with an explicit reset rather than an implicit one.
+     */
+    fun clearIdentifiers() {
+        _userID = ""
+        _memberID = ""
+        _studentID = ""
+        _ticketmasterID = ""
+        _yinzid = ""
+        _pushNotificationToken = ""
+        _arbitraryIdentifiers.clear()
+
+        if (::fanMakerSharedPreferences.isInitialized) {
+            listOf(
+                KEY_USER_ID, KEY_MEMBER_ID, KEY_STUDENT_ID, KEY_TICKETMASTER_ID,
+                KEY_YINZID, KEY_PUSH_TOKEN, KEY_ARBITRARY_IDENTIFIERS
+            ).forEach { fanMakerSharedPreferences.putString(it, "") }
+        }
+        Log.i("FanMakerSDK", "identifiers cleared")
+    }
+
     // A value supplied to the constructor is more current than anything left in
     // prefs by an earlier session, so only empty fields are rehydrated.
     private fun restoredValue(key: String, current: String): String =
@@ -243,7 +279,24 @@ class FanMakerSDK(
         _ticketmasterID = restoredValue(KEY_TICKETMASTER_ID, _ticketmasterID)
         _yinzid = restoredValue(KEY_YINZID, _yinzid)
         _pushNotificationToken = restoredValue(KEY_PUSH_TOKEN, _pushNotificationToken)
-        _deepLinkUrl = restoredValue(KEY_DEEP_LINK, _deepLinkUrl)
+        // A queued destination is only worth replaying for as long as it
+        // plausibly belongs to the tap that queued it. deepLinkUrl used to be
+        // memory-only, so it could never outlive the process; persisting it
+        // without a bound would let a destination that was never opened fire on
+        // some unrelated launch days later.
+        if (_deepLinkUrl.isEmpty()) {
+            val stored = fanMakerSharedPreferences.getString(KEY_DEEP_LINK, "") ?: ""
+            if (stored.isNotEmpty()) {
+                val queuedAt = fanMakerSharedPreferences.getLong(KEY_DEEP_LINK_AT, 0L)
+                val age = System.currentTimeMillis() - queuedAt
+                if (queuedAt > 0L && age in 0..DEEP_LINK_TTL_MS) {
+                    _deepLinkUrl = stored
+                } else {
+                    Log.i("FanMakerSDK", "discarding a stale queued deep link (${age}ms old): $stored")
+                    fanMakerSharedPreferences.putString(KEY_DEEP_LINK, "")
+                }
+            }
+        }
 
         val encoded = fanMakerSharedPreferences.getString(KEY_ARBITRARY_IDENTIFIERS, "")
         if (_arbitraryIdentifiers.isEmpty() && !encoded.isNullOrEmpty()) {
@@ -562,10 +615,11 @@ class FanMakerSDK(
      * Hand a URL to the SDK. Returns whether the SDK claimed it, so a host can
      * fall through to its own handling when it did not.
      *
-     * This used to return Unit and drop unclaimed URLs in silence, which gave
-     * an integrator no way to tell "handled" from "ignored".
+     * [handleUrl] cannot report this itself without changing its signature from
+     * void to boolean, which would break any caller already compiled against
+     * it, so the answer lives here and handleUrl delegates.
      */
-    fun handleUrl(url: String): Boolean {
+    fun openUrl(url: String): Boolean {
         if (!canOpenUrl(url)) {
             Log.i(
                 "FanMakerSDK",
@@ -576,6 +630,19 @@ class FanMakerSDK(
         }
         this.deepLinkUrl = url
         return true
+    }
+
+    /**
+     * Hand a URL to the SDK, ignoring whether it was claimed.
+     *
+     * Kept returning Unit for backwards compatibility: changing the return type
+     * would change the JVM descriptor from (Ljava/lang/String;)V to
+     * (Ljava/lang/String;)Z, and anything already compiled against 4.0.3 - a
+     * vendored copy inside a third-party plugin, for instance - would fail with
+     * NoSuchMethodError on a drop-in SDK update. Use [openUrl] for the result.
+     */
+    fun handleUrl(url: String) {
+        openUrl(url)
     }
 
     // This function is called when the app is resumed assuming we have a lifecycle observer
@@ -683,6 +750,10 @@ class FanMakerSDK(
         private const val KEY_PUSH_TOKEN = "identifier_push_notification_token"
         private const val KEY_ARBITRARY_IDENTIFIERS = "identifier_arbitrary"
         private const val KEY_DEEP_LINK = "pending_deep_link"
+        private const val KEY_DEEP_LINK_AT = "pending_deep_link_queued_at"
+        // Long enough to survive a cold start from a push tap, short enough
+        // that a destination nobody opened does not resurface later.
+        private const val DEEP_LINK_TTL_MS = 10 * 60 * 1000L
     }
 }
 

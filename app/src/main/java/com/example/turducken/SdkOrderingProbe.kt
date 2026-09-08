@@ -60,6 +60,17 @@ object SdkOrderingProbe {
             Log.i(TAG, "run 2: userID=$restored memberID=${sdk.memberID} yinzid=${sdk.yinzid} arbitrary=${sdk.arbitraryIdentifiers}")
             Log.i(TAG, if (ok) "run 2: RESULT PASS - identifiers survived process death"
                        else    "run 2: RESULT FAIL - identifiers did not round-trip")
+
+            // Persistence removed the implicit reset that process death used to
+            // provide, so clearIdentifiers() has to actually clear - in memory
+            // and on disk. If it only cleared memory, the next cold start would
+            // resurrect the previous fan's identifiers.
+            sdk.clearIdentifiers()
+            val clearedInMemory = sdk.userID.isEmpty() && sdk.memberID.isEmpty() &&
+                sdk.yinzid.isEmpty() && sdk.arbitraryIdentifiers.isEmpty()
+            Log.i(TAG, if (clearedInMemory) "run 2: clearIdentifiers cleared memory - ok"
+                       else    "run 2: clearIdentifiers FAILED to clear memory")
+            Log.i(TAG, "run 2: force-stop and launch once more; run 3 must report NO persisted userID")
         }
     }
 

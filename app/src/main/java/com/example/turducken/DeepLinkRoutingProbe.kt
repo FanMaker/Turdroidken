@@ -60,11 +60,12 @@ object DeepLinkRoutingProbe {
         claim("chiefs://rewards/store", false, "host-app scheme, not ours to claim")
         claim("javascript:alert(1)", false, "not a web url")
 
-        // handleUrl now reports rather than dropping in silence.
-        val claimed = sdk.handleUrl("https://$NUX_HOST/store")
-        val refused = sdk.handleUrl("https://evil.example.com/steal")
+        // openUrl reports rather than dropping in silence. handleUrl stays
+        // Unit-returning for backwards compatibility and delegates to it.
+        val claimed = sdk.openUrl("https://$NUX_HOST/store")
+        val refused = sdk.openUrl("https://evil.example.com/steal")
         if (claimed && !refused) pass++ else fail++
-        Log.i(TAG, "${if (claimed && !refused) "ok  " else "FAIL"}  handleUrl returns true for ours ($claimed), false for theirs ($refused)")
+        Log.i(TAG, "${if (claimed && !refused) "ok  " else "FAIL"}  openUrl true for ours ($claimed), false for theirs ($refused)")
 
         // Bare path escape hatch - no hostname convention at all.
         sdk.openPath("store")
@@ -96,7 +97,7 @@ object DeepLinkRoutingProbe {
             if (okPath) pass++ else fail++
             Log.i(TAG, "${if (okPath) "ok  " else "FAIL"}  openPath -> $fromPath")
 
-            sdk.handleUrl("schema://fanmaker/store?ref=push")
+            sdk.openUrl("schema://fanmaker/store?ref=push")
             sdk.formatUrl { fromLegacy ->
                 val wantLegacy = "https://$NUX_HOST/store?ref=push"
                 val okLegacy = fromLegacy == wantLegacy
