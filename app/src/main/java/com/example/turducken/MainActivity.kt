@@ -28,6 +28,8 @@ import org.altbeacon.beacon.BeaconManager
 import android.net.Uri
 
 class MainActivity : AppCompatActivity() {
+    private val DEMO = "PresentDemo"
+
     // Declare FanMakerSDK instances you want to use
     var fanMakerSDK1: FanMakerSDK? = null
     var fanMakerSDK2: FanMakerSDK? = null
@@ -132,6 +134,12 @@ class MainActivity : AppCompatActivity() {
             window.decorView.postDelayed({ PresentHelperProbe.launch(this) }, 2500)
         }
 
+        // The reuse case:
+        //   adb shell am start -n com.example.turducken/.MainActivity --ez fanmakerReuseTest true
+        if (intent?.getBooleanExtra("fanmakerReuseTest", false) == true) {
+            window.decorView.postDelayed({ PresentHelperProbe.launchThenPresentAgain(this) }, 2500)
+        }
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -193,10 +201,35 @@ class MainActivity : AppCompatActivity() {
 
     fun openFanMakerSDKWebView(view: View) {
         setupIdentifiers()
-        // The SDK builds and starts its own intent now - no Intent construction
-        // here, and no "fanMakerKey" extra to get wrong.
+        val started = fanMakerSDK1?.present(this) ?: false
+        Log.i(DEMO, "present(this) -> $started")
+    }
+
+    /** Opens the store. Tap it twice to watch the second one reuse the screen. */
+    fun presentStore(view: View) {
+        setupIdentifiers()
         val started = fanMakerSDK1?.present(this, "/store") ?: false
-        Log.i("PresentProbe", "button: sdk.present(this, \"/store\") -> $started")
+        Log.i(DEMO, "present(this, \"/store\") -> $started, alreadyOpen=${fanMakerSDK1?.isPresenting}")
+    }
+
+    /**
+     * Open this while the store is already up. Previously a second activity was
+     * created, handed its destination over and finished itself. Now Android
+     * routes it to the running screen's onNewIntent and it just navigates.
+     */
+    fun presentRewards(view: View) {
+        setupIdentifiers()
+        val started = fanMakerSDK1?.present(this, "/rewards") ?: false
+        Log.i(DEMO, "present(this, \"/rewards\") -> $started, alreadyOpen=${fanMakerSDK1?.isPresenting}")
+    }
+
+    /** What every integration used to have to write. */
+    fun openViaLegacyIntent(view: View) {
+        setupIdentifiers()
+        val intent = Intent(this, FanMakerSDKWebView::class.java)
+            .apply { putExtra("fanMakerKey", "devDefinedKey1") }
+        startActivity(intent)
+        Log.i(DEMO, "legacy: built the Intent by hand and started it")
     }
 
     fun openFanMakerSDKWebViewFragment(view: View) {

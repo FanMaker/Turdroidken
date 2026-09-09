@@ -71,4 +71,31 @@ object PresentHelperProbe {
         val started = sdk.present(activity, "/store")
         Log.i(TAG, "present(activity, \"/store\") -> $started, queued='${sdk.deepLinkUrl}'")
     }
+
+    /**
+     * The reuse case, driven from inside the app because it cannot be tapped:
+     * once the first screen is up it covers the button, and relaunching the
+     * host activity to reach the button clears the screen off the task, which
+     * destroys the very condition being tested.
+     *
+     * Presents once, then again while the first is still on display. The second
+     * should reuse the open screen rather than build another.
+     */
+    fun launchThenPresentAgain(activity: android.app.Activity) {
+        val sdk = activity.let {
+            FanMakerSDKs.setInstance(it, KEY, API_KEY)
+            FanMakerSDKs.getInstance(it, KEY)
+        } ?: return
+
+        Log.i(TAG, "REUSE 1: present(/store) -> ${sdk.present(activity, "/store")}, isPresenting=${sdk.isPresenting}")
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            Log.i(TAG, "REUSE 2: isPresenting before = ${sdk.isPresenting}")
+            val again = sdk.present(activity, "/rewards")
+            Log.i(TAG, "REUSE 2: present(/rewards) -> $again")
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                Log.i(TAG, "REUSE DONE")
+            }, 2500)
+        }, 5000)
+    }
 }
