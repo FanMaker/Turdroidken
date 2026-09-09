@@ -762,15 +762,83 @@ class FanMakerSDKs() {
     companion object {
         private val instances: MutableMap<String, FanMakerSDK> = mutableMapOf()
 
+        // Which api key each dev-defined key was registered with, persisted so
+        // an instance can be rebuilt in a process that has not run the host's
+        // setInstance calls yet - a cold start from a push tap, for instance.
+        //
+        // This cannot live in FanMakerSDK's own preferences, because those are
+        // namespaced by api key and the api key is exactly what we are trying
+        // to look up. Hence a separate, key-agnostic store.
+        private const val REGISTRY_STORE = "com.fanmaker.sdk.instances"
+        private const val REGISTRY_PREFIX = "api_key_for_"
+
+        private fun registry(context: Context) =
+            FanMakerSharedPreferences(context, REGISTRY_STORE)
+
         fun setInstance(context: Context, key: String, apiKey: String) {
             val instance = FanMakerSDK()
             instance.initialize(context, apiKey)
             instances[key] = instance
+            registry(context).putString(REGISTRY_PREFIX + key, apiKey)
         }
 
+        /**
+         * The instance registered under [key], or null.
+         *
+         * This cannot rebuild a missing instance, because it has no Context to
+         * rebuild one with. Prefer the [getInstance] overload that takes a
+         * Context wherever one is available - notably anything reached from a
+         * push notification, which may run before the host has registered
+         * anything. Kept as-is for backwards compatibility.
+         */
         @Suppress("UNCHECKED_CAST")
         fun getInstance(key: String): FanMakerSDK? {
             return instances[key]
+        }
+
+        /**
+         * The instance registered under [key], rebuilt from persisted state if
+         * this process has not registered it yet.
+         *
+         * A push notification can start the SDK in a cold process, before the
+         * host's own setInstance calls have run - so requiring a pre-registered
+         * instance meant a push tap could only work if the host happened to
+         * have initialized already. The api key is remembered per key, and the
+         * session token and identifiers persist on their own, so a rebuilt
+         * instance is usable straight away.
+         *
+         * A rebuilt instance carries no host-supplied callbacks or parameters:
+         * onClose, onActionTriggered and fanMakerParameters are whatever a
+         * fresh instance has. Closing therefore falls back to the SDK closing
+         * its own activity, which is the documented default when onClose is
+         * null.
+         */
+        fun getInstance(context: Context, key: String): FanMakerSDK? {
+            instances[key]?.let { return it }
+
+            val apiKey = registry(context).getString(REGISTRY_PREFIX + key, "") ?: ""
+            if (apiKey.isEmpty()) {
+                Log.e(
+                    "FanMakerSDKs",
+                    "no instance for key '$key' and nothing persisted to rebuild one from; " +
+                        "the host must call setInstance at least once before this key can be used"
+                )
+                return null
+            }
+
+            Log.i("FanMakerSDKs", "rebuilding instance for key '$key' from persisted state")
+            val instance = FanMakerSDK()
+            instance.initialize(context, apiKey)
+            instances[key] = instance
+            return instance
+        }
+
+        /** Keys this process can resolve, whether live or rebuildable. */
+        fun knownKeys(context: Context): Set<String> {
+            val persisted = registry(context).getSharedPreferences().all.keys
+                .filter { it.startsWith(REGISTRY_PREFIX) }
+                .map { it.removePrefix(REGISTRY_PREFIX) }
+            return instances.keys + persisted
         }
     }
 }

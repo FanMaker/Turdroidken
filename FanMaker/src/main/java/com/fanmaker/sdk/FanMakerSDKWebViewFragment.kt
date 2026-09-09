@@ -169,7 +169,11 @@ class FanMakerSDKWebViewFragment : Fragment() {
             return viewBinding.root
         }
 
-        val fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey)
+        // Context-aware lookup so a fragment host started from a push tap can
+        // rebuild the instance rather than failing to resolve it. The one-webview
+        // -per-key rule is deliberately not applied here: a fragment's lifecycle
+        // belongs to the host activity that placed it.
+        val fanMakerSDK = FanMakerSDKs.getInstance(requireContext(), fanMakerKey)
         if (fanMakerSDK == null) {
             Log.e("FanMakerSDKWebViewFragment", "Failed to get instance of FanMakerSDK.")
             return viewBinding.root

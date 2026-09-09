@@ -114,6 +114,10 @@ class MainActivity : AppCompatActivity() {
         DeepLinkRoutingProbe.checkPersistence(this)
         window.decorView.post { DeepLinkRoutingProbe.run(this) }
 
+        // Launch de-dup registry and cold-start self-scaffolding.
+        // grep logcat for [ScaffoldProbe].
+        ScaffoldingProbe.run(this)
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 

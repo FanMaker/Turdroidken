@@ -82,5 +82,16 @@ object LegacyApiCompatCheck {
         sdk.updateAllowedDomains(listOf("example.com"))
         val domains: List<String> = sdk.allowedDomains
         sdk.clearIdentifiers()
+
+        // The Context-aware lookup rebuilds an instance from persisted state;
+        // the old single-argument form is untouched and still resolves only
+        // what this process registered.
+        val rebuildable: FanMakerSDK? = FanMakerSDKs.getInstance(activity, "<DEV_DEFINED_KEY>")
+        val stillThere: FanMakerSDK? = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
+        val known: Set<String> = FanMakerSDKs.knownKeys(activity)
+
+        // One webview per key.
+        val open: Set<String> = FanMakerSDKWebView.runningKeys
+        val busy: Boolean = FanMakerSDKWebView.isRunning("<DEV_DEFINED_KEY>")
     }
 }

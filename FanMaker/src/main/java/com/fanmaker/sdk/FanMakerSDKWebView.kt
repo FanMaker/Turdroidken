@@ -160,9 +160,12 @@ class FanMakerSDKWebView : AppCompatActivity() {
             return
         }
 
-        val fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey)
+        // Context-aware lookup, so a push tap that starts a cold process can
+        // rebuild the instance from persisted state instead of dying here
+        // because the host had not registered it yet.
+        val fanMakerSDK = FanMakerSDKs.getInstance(this, fanMakerKey)
         if (fanMakerSDK == null) {
-            Log.e("FanMakerSDKWebView", "Failed to get instance of FanMakerSDK.")
+            Log.e(TAG, "Failed to get instance of FanMakerSDK.")
             finish() // Close the activity
             return
         }
@@ -203,6 +206,20 @@ class FanMakerSDKWebView : AppCompatActivity() {
                     )
             }
         }
+
+        // One webview per key. A second launch for a key that already has one
+        // on screen hands its destination to that webview and steps aside,
+        // rather than stacking a duplicate the fan then has to back out of
+        // twice. Runs after the deep link extra above, so the destination is
+        // already on the instance and nothing is lost by finishing here.
+        val existing = liveActivityFor(fanMakerKey)
+        if (existing != null && existing !== this) {
+            Log.i(TAG, "a webview is already open for key '$fanMakerKey'; handing over and closing this one")
+            existing.loadPendingDestination(fanMakerSDK)
+            finish()
+            return
+        }
+        claimRunningKey(fanMakerKey, this)
 
         fanMakerSharedPreferences = FanMakerSharedPreferences(getApplicationContext(), fanMakerSDK!!.apiKey)
 
@@ -598,6 +615,85 @@ class FanMakerSDKWebView : AppCompatActivity() {
         // Unregister this activity (kept for backward compat; see register()).
         @Suppress("DEPRECATION")
         ActivityTracker.unregister(this)
+        releaseRunningKey(this)
         cameraExecutor.shutdown()
+    }
+
+    /**
+     * Load whatever destination is currently queued on the SDK instance.
+     *
+     * Used when a second launch arrives for a key that already has a webview
+     * open: rather than stacking a duplicate, the destination is handed to the
+     * webview already on screen. Without this a push tap while the SDK was
+     * open would be deduplicated into doing nothing at all.
+     */
+    internal fun loadPendingDestination(sdk: FanMakerSDK) {
+        if (isFinishing || isDestroyed) return
+        if (sdk.deepLinkUrl.isEmpty()) return
+        sdk.formatUrl { formattedUrl ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val view = findViewById<WebView>(R.id.fanmaker_sdk_webview)
+                if (view == null) {
+                    Log.e(TAG, "no webview to hand the destination to")
+                    return@runOnUiThread
+                }
+                Log.i(TAG, "loading destination handed over from a duplicate launch: $formattedUrl")
+                view.loadUrl(formattedUrl, sdk.webViewHeaders())
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "FanMakerSDKWebView"
+
+        // Live webviews by fanMakerKey. Weak, so an activity that went away
+        // without onDestroy running cannot hold a key hostage - a stale entry
+        // is pruned on the next look rather than blocking relaunch forever.
+        // Process-scoped by nature, so a killed process starts clean.
+        private val runningByKey = mutableMapOf<String, java.lang.ref.WeakReference<FanMakerSDKWebView>>()
+
+        private fun prune() {
+            runningByKey.entries.removeAll { (_, ref) ->
+                val activity = ref.get()
+                activity == null || activity.isFinishing || activity.isDestroyed
+            }
+        }
+
+        /** Keys that currently have a webview on screen. */
+        @JvmStatic
+        val runningKeys: Set<String>
+            get() = synchronized(runningByKey) {
+                prune()
+                runningByKey.keys.toSet()
+            }
+
+        /** Whether [key] already has a webview on screen. */
+        @JvmStatic
+        fun isRunning(key: String): Boolean = synchronized(runningByKey) {
+            prune()
+            runningByKey.containsKey(key)
+        }
+
+        private fun liveActivityFor(key: String): FanMakerSDKWebView? = synchronized(runningByKey) {
+            prune()
+            runningByKey[key]?.get()
+        }
+
+        private fun claimRunningKey(key: String, activity: FanMakerSDKWebView) {
+            synchronized(runningByKey) {
+                prune()
+                runningByKey[key] = java.lang.ref.WeakReference(activity)
+            }
+        }
+
+        private fun releaseRunningKey(activity: FanMakerSDKWebView) {
+            synchronized(runningByKey) {
+                runningByKey.entries.removeAll { (_, ref) ->
+                    val held = ref.get()
+                    held == null || held === activity
+                }
+            }
+        }
     }
 }

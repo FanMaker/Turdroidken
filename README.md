@@ -856,6 +856,51 @@ README is now a preference rather than a requirement.
 link, including the legacy shape. It now produces `https://host/store`. Only
 relevant if something on your side matched on the old form.
 
+### One webview per key, and cold-start launches
+
+Two changes to how `FanMakerSDKWebView` starts, both of which apply without any
+code change on your side.
+
+**A second launch for a key that already has a webview open no longer stacks a
+duplicate.** The destination from the second launch is handed to the webview
+already on screen and the duplicate closes itself, so a fan does not end up
+backing out of the same screen twice. Deduplication is per key, so separate
+instances can each have their own webview open. If you want to check before
+launching:
+
+```
+if (!FanMakerSDKWebView.isRunning("<DEV_DEFINED_KEY>")) {
+    startActivity(fanmakerIntent)
+}
+```
+
+`FanMakerSDKWebView.runningKeys` lists the keys with a webview currently on
+screen.
+
+**The webview can now start in a process that has not run your `setInstance`
+calls yet.** This is what a push notification does: tapping it can start the
+activity cold, before your `MainActivity` has initialized anything. Previously
+that failed with `Failed to get instance of FanMakerSDK` and the activity
+closed immediately. The api key for each dev-defined key is now remembered, so
+the SDK rebuilds the instance itself. The session token and identifiers already
+persist, so a rebuilt instance works straight away.
+
+You still have to call `setInstance` at least once, on some earlier run, for a
+key to be rebuildable — the SDK cannot invent an api key it has never been
+given.
+
+A rebuilt instance carries no host-supplied callbacks or parameters: `onClose`,
+`onActionTriggered` and `fanMakerParameters` are whatever a fresh instance has.
+Closing therefore falls back to the SDK closing its own activity, which is the
+documented default when `onClose` is null. If your integration depends on those,
+set them as usual when your app does initialize; the rebuilt instance is
+replaced by yours the moment you call `setInstance`.
+
+`FanMakerSDKs.getInstance(key)` is unchanged and still resolves only what this
+process registered. The rebuilding behaviour is on a new overload that takes a
+Context, `FanMakerSDKs.getInstance(context, key)`, which is what the SDK's own
+activity and fragment now use. Prefer it anywhere reachable from a notification.
+
 ### Minification
 
 The SDK now ships consumer ProGuard rules. If you enabled R8 or ProGuard, beacon
