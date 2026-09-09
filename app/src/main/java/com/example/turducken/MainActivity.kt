@@ -122,6 +122,16 @@ class MainActivity : AppCompatActivity() {
         SessionResetProbe.checkPersistence(this)
         SessionResetProbe.run(this)
 
+        // present(): the SDK builds and starts its own intent.
+        // grep logcat for [PresentProbe].
+        PresentHelperProbe.run(this)
+
+        // Scriptable end-to-end check of present(), no taps needed:
+        //   adb shell am start -n com.example.turducken/.MainActivity --ez fanmakerPresentTest true
+        if (intent?.getBooleanExtra("fanmakerPresentTest", false) == true) {
+            window.decorView.postDelayed({ PresentHelperProbe.launch(this) }, 2500)
+        }
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -183,9 +193,10 @@ class MainActivity : AppCompatActivity() {
 
     fun openFanMakerSDKWebView(view: View) {
         setupIdentifiers()
-        // An example to go to a specific page in the FanMaker SDK
-        fanMakerSDK1?.handleUrl("schema://FanMaker/store")
-        startActivity(fanmakerIntent1)
+        // The SDK builds and starts its own intent now - no Intent construction
+        // here, and no "fanMakerKey" extra to get wrong.
+        val started = fanMakerSDK1?.present(this, "/store") ?: false
+        Log.i("PresentProbe", "button: sdk.present(this, \"/store\") -> $started")
     }
 
     fun openFanMakerSDKWebViewFragment(view: View) {

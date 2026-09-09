@@ -195,9 +195,44 @@ class MainActivity : AppCompatActivity() {
 
 ### Displaying FanMaker UI
 
-In order to show FanMaker UI in your app, use the provided `FanMakerSDKWebView` class as part of your usual `Intent` call. Note: it is important that you pass your `<DEV_DEFINED_KEY>` as an extra of the intent so that the `FanMakerWebView` is able to find the `FanMakerSDK` instance to use.
-
+```kotlin
+fanMakerSDK1?.present(this)
 ```
+
+That is the whole integration. The SDK builds and starts its own activity, and
+closes it again when the fan is done — the system back gesture always works, and
+web content triggering the close action finishes it too.
+
+To open a specific page, pass a path:
+
+```kotlin
+fanMakerSDK1?.present(this, "/store")
+```
+
+`present()` returns whether it started the activity. It returns `false` when the
+SDK has not been initialized, or when this instance was built directly rather than
+registered through `FanMakerSDKs.setInstance` — in which case it has no key to
+launch with, and refuses rather than starting an activity that would immediately
+fail to resolve it.
+
+`isPresenting` reports whether this instance currently has a screen on display, and
+`dismiss()` closes one from your own code.
+
+Only one webview is open per key at a time. Launching again while a screen is up
+hands the new destination to the screen already open rather than stacking a copy the
+fan has to back out of twice.
+
+#### Building the intent yourself (legacy)
+
+> **Still fully supported, but no longer recommended.** New integrations should use
+> `present()` above. This path asks every host to know the SDK's activity class and
+> to attach the dev-defined key as a `"fanMakerKey"` extra — a magic string that
+> fails silently when it is wrong or missing, which is a common source of
+> integration problems. We intend to keep it working, and to move new integrations
+> onto `present()`. Expect it to be formally deprecated in a future release; it will
+> not be removed without notice and a migration path.
+
+```kotlin
 import com.fanmaker.sdk.FanMakerSDKWebView
 
 class MyActivity : AppCompatActivity() {
@@ -210,7 +245,10 @@ class MyActivity : AppCompatActivity() {
 }
 ```
 
-Then you can call `openFanMakerSDKWebView` when user taps a button, for example.
+A push notification can also name its destination directly on the intent, with a
+`"fanMakerDeepLink"` extra — either a path such as `/store` or a first-party URL.
+Anything else is refused, because the activity is exported and the extra therefore
+comes from an untrusted caller.
 
 #### Displaying FanMaker UI as a Fragment
 
