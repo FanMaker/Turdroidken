@@ -14,6 +14,7 @@ import androidx.lifecycle.LifecycleOwner
 
 // Shared Preferences
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
 
 // Location
@@ -202,6 +203,77 @@ class FanMakerSDK(
     var onClose: ((params: HashMap<String, Any>?) -> Unit)? = null
 
     // ------------------------------------------------------------------------------------------------------
+
+    /**
+     * The dev-defined key this instance was registered under, or "" when it was
+     * built directly rather than through [FanMakerSDKs.setInstance].
+     *
+     * Needed because launching the webview requires this key as an intent
+     * extra, so an instance that does not know its own key cannot start its
+     * own screen.
+     */
+    var instanceKey: String = ""
+        internal set
+
+    /**
+     * Puts the FanMaker UI on screen, without the host having to build an
+     * intent or know which activity to start.
+     *
+     * A host previously had to construct
+     * `Intent(context, FanMakerSDKWebView::class.java)` and remember to attach
+     * the dev-defined key as a `"fanMakerKey"` extra - a magic string that
+     * fails silently when it is wrong or missing. This is the counterpart of
+     * `present()` on the iOS SDK.
+     *
+     * @param path an optional destination inside the FanMaker UI, such as
+     *   "/store". Equivalent to calling [openPath] beforehand.
+     * @return whether the activity was started.
+     */
+    @JvmOverloads
+    fun present(context: Context, path: String? = null): Boolean {
+        if (!isInitialized()) {
+            Log.e("FanMakerSDK", "cannot present: initialize() has not been called yet")
+            return false
+        }
+
+        if (instanceKey.isEmpty()) {
+            Log.e(
+                "FanMakerSDK",
+                "cannot present: this instance was not registered with FanMakerSDKs.setInstance, " +
+                    "so it has no key to launch with. Register it, or build the intent yourself."
+            )
+            return false
+        }
+
+        if (path != null && !openPath(path)) return false
+
+        // Deliberately different from iOS, where a second present() while a
+        // screen is up is refused. Here the activity itself owns the
+        // one-webview-per-key rule, and a duplicate launch hands its
+        // destination to the screen already open before finishing itself - so
+        // starting it either way is correct and never drops a destination.
+        // isPresenting is there for a host that wants to decide for itself.
+        val intent = Intent(context, FanMakerSDKWebView::class.java)
+            .apply { putExtra("fanMakerKey", instanceKey) }
+        context.startActivity(intent)
+        return true
+    }
+
+    /** Whether this instance currently has a FanMaker screen on display. */
+    val isPresenting: Boolean
+        get() = instanceKey.isNotEmpty() && FanMakerSDKWebView.isRunning(instanceKey)
+
+    /**
+     * Closes a screen this instance put on display.
+     *
+     * Only needed by a host closing the UI from its own code; web content
+     * triggering the close action, and the system back gesture, both already
+     * unwind on their own.
+     */
+    fun dismiss() {
+        if (instanceKey.isEmpty()) return
+        FanMakerSDKWebView.finishRunning(instanceKey)
+    }
 
     fun initialize(context: Context, apiKey: String) {
         this.apiKey = apiKey
@@ -810,6 +882,7 @@ class FanMakerSDKs() {
         fun setInstance(context: Context, key: String, apiKey: String) {
             val instance = FanMakerSDK()
             instance.initialize(context, apiKey)
+            instance.instanceKey = key
             instances[key] = instance
             registry(context).putString(REGISTRY_PREFIX + key, apiKey)
         }
@@ -861,6 +934,7 @@ class FanMakerSDKs() {
             Log.i("FanMakerSDKs", "rebuilding instance for key '$key' from persisted state")
             val instance = FanMakerSDK()
             instance.initialize(context, apiKey)
+            instance.instanceKey = key
             instances[key] = instance
             return instance
         }

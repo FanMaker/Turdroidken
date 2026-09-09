@@ -675,6 +675,15 @@ class FanMakerSDKWebView : AppCompatActivity() {
             runningByKey.containsKey(key)
         }
 
+        /** Finishes the webview open for [key], if there is one. */
+        @JvmStatic
+        fun finishRunning(key: String) {
+            val activity = liveActivityFor(key) ?: return
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) activity.finish()
+            }
+        }
+
         private fun liveActivityFor(key: String): FanMakerSDKWebView? = synchronized(runningByKey) {
             prune()
             runningByKey[key]?.get()
