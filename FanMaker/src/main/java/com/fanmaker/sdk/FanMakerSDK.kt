@@ -245,16 +245,29 @@ class FanMakerSDK(
             return false
         }
 
+        // Validate before starting anything, so a bad path never reaches the
+        // activity and the fan is not sent to a screen that then loads the
+        // wrong place.
         if (path != null && !openPath(path)) return false
 
-        // Deliberately different from iOS, where a second present() while a
-        // screen is up is refused. Here the activity itself owns the
-        // one-webview-per-key rule, and a duplicate launch hands its
-        // destination to the screen already open before finishing itself - so
-        // starting it either way is correct and never drops a destination.
-        // isPresenting is there for a host that wants to decide for itself.
         val intent = Intent(context, FanMakerSDKWebView::class.java)
             .apply { putExtra("fanMakerKey", instanceKey) }
+
+        if (FanMakerSDKWebView.isRunning(instanceKey)) {
+            // A screen is already open for this key, so reuse it rather than
+            // building a second one. SINGLE_TOP makes Android deliver this to
+            // the running activity's onNewIntent instead of creating another,
+            // and REORDER_TO_FRONT brings it forward when the task is
+            // backgrounded - a push tap while the app is not in front.
+            //
+            // The destination rides along on the intent, so onNewIntent applies
+            // it and navigates the open screen. Nothing is dropped, and the fan
+            // never sees a second copy appear and vanish.
+            intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+            if (path != null) intent.putExtra("fanMakerDeepLink", path)
+            Log.i("FanMakerSDK", "a webview is already open for '$instanceKey'; reusing it")
+        }
+
         context.startActivity(intent)
         return true
     }
