@@ -82,6 +82,8 @@ object LegacyApiCompatCheck {
         sdk.updateAllowedDomains(listOf("example.com"))
         val domains: List<String> = sdk.allowedDomains
         sdk.clearIdentifiers()
+        sdk.clearSessionToken()
+        sdk.logout()
 
         // The Context-aware lookup rebuilds an instance from persisted state;
         // the old single-argument form is untouched and still resolves only

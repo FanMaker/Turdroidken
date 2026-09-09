@@ -784,28 +784,39 @@ plugin. No code change is required.
 There are, however, four behaviour changes worth knowing about, because they
 take effect on update whether or not you touch your code.
 
-### Identifiers now survive process death — call `clearIdentifiers()` on sign-out
+### Identifiers now survive process death — call `logout()` on sign-out
 
 Identifiers used to live only in memory, so they were lost whenever the app
 process was killed and had to be re-supplied on every cold start. They are now
 persisted and rehydrated, which is what most integrations expected all along.
 
-The consequence is that **process death is no longer an implicit reset.** If your
-app signs a fan out by simply not setting identifiers again, the SDK will still
-be holding the previous fan's values. Add an explicit reset to your sign-out
-path:
+The consequence is that **process death is no longer an implicit reset.** Add an
+explicit one to your sign-out path:
 
 ```
-fanMakerSDK?.clearIdentifiers()
+fanMakerSDK?.logout()
 ```
 
-This matters most where a second fan can sign in on the same device and supplies
-fewer identifiers than the first — without the call, they inherit the leftovers.
-Note the FanMaker session token has always persisted, so this brings identifiers
-in line with it rather than introducing something new.
+`logout()` forgets the fan completely: every identifier, the FanMaker session
+token, and the auto-login user token.
+
+**Use `logout()`, not `clearIdentifiers()`.** Clearing identifiers is not a
+sign-out. The session token is what actually authenticates the fan — it is sent
+as `X-FanMaker-SessionToken` and `Authorization` — so clearing only the
+identifiers leaves the next person to open the webview logged in as the previous
+fan, whatever the identifiers say. Nothing in the SDK cleared that token before
+this release, so ending a session was not previously possible at all;
+`clearIdentifiers()` remains available for the narrower job its name describes.
 
 A value you pass to the constructor still wins over a persisted one, so only
 empty fields are ever rehydrated.
+
+Note that identifiers are deliberately restored whether or not a session token
+is present. They are the *input* to auto-login — the SDK posts them to
+`site/auth/auto_login` when composing the webview URL — so a returning fan whose
+token has gone is exactly the case that needs them. `clearSessionToken()` is
+available if you want to force a re-authentication while keeping the identifiers
+that make it possible.
 
 ### Deep links are claimed more broadly
 

@@ -237,16 +237,48 @@ class FanMakerSDK(
     }
 
     /**
-     * Forget every identifier, in memory and on disk. Call this when a fan
-     * signs out of the host app.
+     * Forget the fan completely: every identifier, the FanMaker session token,
+     * and the auto-login user token. This is what a host should call when a
+     * fan signs out.
      *
-     * This exists because identifiers now persist. Before that they were
+     * Clearing identifiers alone is not a sign-out. The session token is what
+     * actually authenticates the fan - webViewHeaders sends it as
+     * X-FanMaker-SessionToken and Authorization - so leaving it behind means
+     * the next person to open the webview arrives already logged in as the
+     * previous fan, whatever the identifiers say. Nothing else in the SDK has
+     * ever cleared that token, so before this there was no way for a host to
+     * end a session at all.
+     */
+    fun logout() {
+        clearIdentifiers()
+        clearSessionToken()
+        Log.i("FanMakerSDK", "logged out: identifiers and session token cleared")
+    }
+
+    /**
+     * Forget the FanMaker session token and the auto-login user token, leaving
+     * identifiers in place.
+     *
+     * Identifiers are the input to auto-login - loginUserFromParamsSync posts
+     * them to site/auth/auto_login - so keeping them lets the next open
+     * re-authenticate the same fan. Use [logout] to forget the fan entirely.
+     */
+    fun clearSessionToken() {
+        if (::fanMakerSharedPreferences.isInitialized) {
+            fanMakerSharedPreferences.putString("token", "")
+        }
+        fanMakerUserToken.clear()
+    }
+
+    /**
+     * Forget every identifier, in memory and on disk.
+     *
+     * This does NOT end the session - see [logout], which is almost certainly
+     * what a sign-out path wants.
+     *
+     * It exists because identifiers now persist. Before that they were
      * memory-only, so process death cleared them and an integration could
-     * "log out" simply by not setting them again on the next launch. That is
-     * no longer true: without this call, a fan who signs out and is replaced
-     * by someone who supplies fewer identifiers would inherit the leftovers of
-     * the previous fan. The session token has always persisted, so this brings
-     * identifiers in line with an explicit reset rather than an implicit one.
+     * "log out" simply by not setting them again on the next launch.
      */
     fun clearIdentifiers() {
         _userID = ""
