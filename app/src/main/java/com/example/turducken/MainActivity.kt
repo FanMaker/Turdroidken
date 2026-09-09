@@ -118,6 +118,10 @@ class MainActivity : AppCompatActivity() {
         // grep logcat for [ScaffoldProbe].
         ScaffoldingProbe.run(this)
 
+        // What a sign-out actually clears. grep logcat for [SessionProbe].
+        SessionResetProbe.checkPersistence(this)
+        SessionResetProbe.run(this)
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
