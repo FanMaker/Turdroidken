@@ -49,8 +49,8 @@ class MainActivity : AppCompatActivity() {
         // that you can access by their unique key to insure availability across your app.
 
         // The first parameter is the context, the second is the key you will use to access the instance, and the third is the API key for the instance.
-        FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
-        FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
+        FanMakerSDKs.setInstance(this, "devDefinedKey1", BuildConfig.FANMAKER_SITE_TOKEN)
+        FanMakerSDKs.setInstance(this, "devDefinedKey2", BuildConfig.FANMAKER_SITE_TOKEN)
 
         // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
         fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey1")

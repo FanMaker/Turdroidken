@@ -3,6 +3,14 @@ plugins {
     id 'kotlin-android'
 }
 
+// The sample app needs a real site token to load real content. It lives in
+// local.properties, which is gitignored, so no credential reaches a commit.
+// Add a line like:  fanmakerSiteToken=<token>
+def sampleProps = new Properties()
+def samplePropsFile = rootProject.file('local.properties')
+if (samplePropsFile.exists()) { samplePropsFile.withInputStream { sampleProps.load(it) } }
+def fanmakerSiteToken = sampleProps.getProperty('fanmakerSiteToken', '<SDK_KEY_1>')
+
 android {
     namespace 'com.example.turducken'
     compileSdk 35
@@ -15,6 +23,8 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField "String", "FANMAKER_SITE_TOKEN", "\"${fanmakerSiteToken}\""
     }
 
     buildTypes {
@@ -44,6 +54,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
         viewBinding = true  // Keep for existing Views during migration
     }

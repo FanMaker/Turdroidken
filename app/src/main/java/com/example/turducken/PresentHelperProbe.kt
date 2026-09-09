@@ -19,7 +19,9 @@ import com.fanmaker.sdk.FanMakerSDKs
 object PresentHelperProbe {
     private const val TAG = "PresentProbe"
     private const val KEY = "presentProbeKey"
-    private const val API_KEY = "present-probe-local-only"
+    // Set fanmakerSiteToken in local.properties so this loads real content;
+    // without it the placeholder gives a 500, which is not a useful test.
+    private val API_KEY = BuildConfig.FANMAKER_SITE_TOKEN
 
     fun run(context: Context) {
         Log.i(TAG, "---- present() helper ----")
