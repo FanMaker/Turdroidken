@@ -12,7 +12,10 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <application>
-        <activity android:name=".FanMakerSDKWebView" android:exported="true" />
+        <activity
+            android:name=".FanMakerSDKWebView"
+            android:exported="true"
+            android:theme="@style/Theme.FanMakerSDK" />
         
         <provider
             android:name="FanMakerSDKFileProvider"

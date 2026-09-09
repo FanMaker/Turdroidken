@@ -125,6 +125,12 @@ class FanMakerSDKWebView : AppCompatActivity() {
         @Suppress("DEPRECATION")
         ActivityTracker.register(this)
 
+        // The activity declares a NoActionBar theme, so normally there is
+        // nothing to hide. This covers a host that re-declares the activity in
+        // their own manifest with a theme of their own: the SDK's screen must
+        // not carry the host app's name above FanMaker content.
+        supportActionBar?.hide()
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
