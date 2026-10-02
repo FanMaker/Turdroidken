@@ -28,6 +28,8 @@ import org.altbeacon.beacon.BeaconManager
 import android.net.Uri
 
 class MainActivity : AppCompatActivity() {
+    private val DEMO = "PresentDemo"
+
     // Declare FanMakerSDK instances you want to use
     var fanMakerSDK1: FanMakerSDK? = null
     var fanMakerSDK2: FanMakerSDK? = null
@@ -47,8 +49,8 @@ class MainActivity : AppCompatActivity() {
         // that you can access by their unique key to insure availability across your app.
 
         // The first parameter is the context, the second is the key you will use to access the instance, and the third is the API key for the instance.
-        FanMakerSDKs.setInstance(this, "devDefinedKey1", "<SDK_KEY_1>")
-        FanMakerSDKs.setInstance(this, "devDefinedKey2", "<SDK_KEY_2>")
+        FanMakerSDKs.setInstance(this, "devDefinedKey1", BuildConfig.FANMAKER_SITE_TOKEN)
+        FanMakerSDKs.setInstance(this, "devDefinedKey2", BuildConfig.FANMAKER_SITE_TOKEN)
 
         // Get the FanMakerSDK instances and assign them to a variable if you so desire for ease of use
         fanMakerSDK1 = FanMakerSDKs.getInstance("devDefinedKey1")
@@ -99,6 +101,44 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Reports whether R8 stripped AltBeacon's reflectively-built RSSI filter.
+        // grep logcat for [BeaconProbe]. See FanMaker/consumer-rules.pro.
+        BeaconMinificationProbe.run()
+
+        // Reproduces a third-party host's call order (observer registered
+        // against an already-RESUMED lifecycle) and checks identifier
+        // persistence across process death. grep logcat for [SdkProbe].
+        window.decorView.post { SdkOrderingProbe.run(this) }
+
+        // Push deep-link routing: which URLs the SDK claims, which it refuses.
+        // grep logcat for [LinkProbe].
+        DeepLinkRoutingProbe.checkPersistence(this)
+        window.decorView.post { DeepLinkRoutingProbe.run(this) }
+
+        // Launch de-dup registry and cold-start self-scaffolding.
+        // grep logcat for [ScaffoldProbe].
+        ScaffoldingProbe.run(this)
+
+        // What a sign-out actually clears. grep logcat for [SessionProbe].
+        SessionResetProbe.checkPersistence(this)
+        SessionResetProbe.run(this)
+
+        // present(): the SDK builds and starts its own intent.
+        // grep logcat for [PresentProbe].
+        PresentHelperProbe.run(this)
+
+        // Scriptable end-to-end check of present(), no taps needed:
+        //   adb shell am start -n com.example.turducken/.MainActivity --ez fanmakerPresentTest true
+        if (intent?.getBooleanExtra("fanmakerPresentTest", false) == true) {
+            window.decorView.postDelayed({ PresentHelperProbe.launch(this) }, 2500)
+        }
+
+        // The reuse case:
+        //   adb shell am start -n com.example.turducken/.MainActivity --ez fanmakerReuseTest true
+        if (intent?.getBooleanExtra("fanmakerReuseTest", false) == true) {
+            window.decorView.postDelayed({ PresentHelperProbe.launchThenPresentAgain(this) }, 2500)
+        }
 
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
@@ -161,9 +201,35 @@ class MainActivity : AppCompatActivity() {
 
     fun openFanMakerSDKWebView(view: View) {
         setupIdentifiers()
-        // An example to go to a specific page in the FanMaker SDK
-        fanMakerSDK1?.handleUrl("schema://FanMaker/store")
-        startActivity(fanmakerIntent1)
+        val started = fanMakerSDK1?.present(this) ?: false
+        Log.i(DEMO, "present(this) -> $started")
+    }
+
+    /** Opens the store. Tap it twice to watch the second one reuse the screen. */
+    fun presentStore(view: View) {
+        setupIdentifiers()
+        val started = fanMakerSDK1?.present(this, "/store") ?: false
+        Log.i(DEMO, "present(this, \"/store\") -> $started, alreadyOpen=${fanMakerSDK1?.isPresenting}")
+    }
+
+    /**
+     * Open this while the store is already up. Previously a second activity was
+     * created, handed its destination over and finished itself. Now Android
+     * routes it to the running screen's onNewIntent and it just navigates.
+     */
+    fun presentRewards(view: View) {
+        setupIdentifiers()
+        val started = fanMakerSDK1?.present(this, "/rewards") ?: false
+        Log.i(DEMO, "present(this, \"/rewards\") -> $started, alreadyOpen=${fanMakerSDK1?.isPresenting}")
+    }
+
+    /** What every integration used to have to write. */
+    fun openViaLegacyIntent(view: View) {
+        setupIdentifiers()
+        val intent = Intent(this, FanMakerSDKWebView::class.java)
+            .apply { putExtra("fanMakerKey", "devDefinedKey1") }
+        startActivity(intent)
+        Log.i(DEMO, "legacy: built the Intent by hand and started it")
     }
 
     fun openFanMakerSDKWebViewFragment(view: View) {

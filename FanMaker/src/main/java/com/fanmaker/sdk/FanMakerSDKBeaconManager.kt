@@ -58,6 +58,14 @@ class FanMakerSDKBeaconManager(
                 beaconUniquenessThrottle =
                     beacons.getString("uniqueness_throttle").toInt() * 1000
                 Log.d(TAG, "beaconUniquenessThrottle set to $beaconUniquenessThrottle milliseconds")
+
+                // First-party host allowlist for push deep-link routing.
+                // See FanMaker/app#1885.
+                val allowedDomainsJson = data.optJSONArray("allowed_domains")
+                if (allowedDomainsJson != null) {
+                    val domains = (0 until allowedDomainsJson.length()).map { allowedDomainsJson.getString(it) }
+                    fanMakerSDK.updateAllowedDomains(domains)
+                }
             } catch (err: Exception) {
                 Log.e(TAG, err.toString())
             }

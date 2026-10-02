@@ -83,6 +83,9 @@ class FanMakerSDKWebView : AppCompatActivity() {
     private var fanMakerFileChooserParams: WebChromeClient.FileChooserParams? = null
 
     private lateinit var viewBinding: FanmakerSdkWebviewBinding
+
+    /** The key this screen was launched for; see [onNewIntent]. */
+    private var boundKey: String? = null
     private fun startBackgroundThread() {
         backgroundHandlerThread = HandlerThread("CameraVideoThread")
         backgroundHandlerThread.start()
@@ -122,6 +125,12 @@ class FanMakerSDKWebView : AppCompatActivity() {
         @Suppress("DEPRECATION")
         ActivityTracker.register(this)
 
+        // The activity declares a NoActionBar theme, so normally there is
+        // nothing to hide. This covers a host that re-declares the activity in
+        // their own manifest with a theme of their own: the SDK's screen must
+        // not carry the host app's name above FanMaker content.
+        supportActionBar?.hide()
+
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
@@ -154,18 +163,73 @@ class FanMakerSDKWebView : AppCompatActivity() {
         setContentView(R.layout.fanmaker_sdk_webview)
 
         val fanMakerKey = intent.getStringExtra("fanMakerKey")
+        boundKey = fanMakerKey
         if (fanMakerKey == null) {
             Log.e("FanMakerSDKWebView", "fanMakerKey is null. Cannot initialize FanMakerSDK.")
             finish() // Close the activity
             return
         }
 
-        val fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey)
+        // Context-aware lookup, so a push tap that starts a cold process can
+        // rebuild the instance from persisted state instead of dying here
+        // because the host had not registered it yet.
+        val fanMakerSDK = FanMakerSDKs.getInstance(this, fanMakerKey)
         if (fanMakerSDK == null) {
-            Log.e("FanMakerSDKWebView", "Failed to get instance of FanMakerSDK.")
+            Log.e(TAG, "Failed to get instance of FanMakerSDK.")
             finish() // Close the activity
             return
         }
+
+        // A push tap can name its destination directly on the launch intent,
+        // rather than requiring the host to reach into the SDK instance before
+        // starting this activity - which a cold-start tap often cannot do,
+        // because nothing has initialized the SDK yet.
+        //
+        // This activity is android:exported="true", so the extra is UNTRUSTED:
+        // any app on the device can start us. It is validated before use, and
+        // must never be handed to loadUrl directly. It matters because the
+        // webview sends the fan's identifiers as request headers and the page
+        // can read the identifier lexicon and session token back through the
+        // JS bridge - so honouring an arbitrary URL here would hand those to
+        // whoever asked.
+        intent.getStringExtra("fanMakerDeepLink")?.let { requested ->
+            when {
+                // A genuine path is safe: it can only ever be resolved against
+                // our own base URL. openPath rejects anything that smuggles in a
+                // host, so its result is what decides here.
+                requested.startsWith("/") ->
+                    if (fanMakerSDK.openPath(requested)) {
+                        Log.i("FanMakerSDKWebView", "deep link from intent: $requested")
+                    } else {
+                        Log.e(
+                            "FanMakerSDKWebView",
+                            "ignoring fanMakerDeepLink extra, not a usable path: $requested"
+                        )
+                    }
+                // A full URL is only honoured if the SDK claims it.
+                fanMakerSDK.openUrl(requested) ->
+                    Log.i("FanMakerSDKWebView", "deep link from intent: $requested")
+                else ->
+                    Log.e(
+                        "FanMakerSDKWebView",
+                        "ignoring fanMakerDeepLink extra, not a first-party destination: $requested"
+                    )
+            }
+        }
+
+        // One webview per key. A second launch for a key that already has one
+        // on screen hands its destination to that webview and steps aside,
+        // rather than stacking a duplicate the fan then has to back out of
+        // twice. Runs after the deep link extra above, so the destination is
+        // already on the instance and nothing is lost by finishing here.
+        val existing = liveActivityFor(fanMakerKey)
+        if (existing != null && existing !== this) {
+            Log.i(TAG, "a webview is already open for key '$fanMakerKey'; handing over and closing this one")
+            existing.loadPendingDestination(fanMakerSDK)
+            finish()
+            return
+        }
+        claimRunningKey(fanMakerKey, this)
 
         fanMakerSharedPreferences = FanMakerSharedPreferences(getApplicationContext(), fanMakerSDK!!.apiKey)
 
@@ -360,6 +424,14 @@ class FanMakerSDKWebView : AppCompatActivity() {
                     val sdk_url = data.getString("url")
                     fanMakerSDK!!.updateBaseUrl(sdk_url)
 
+                    // First-party host allowlist for push deep-link routing.
+                    // See FanMaker/app#1885.
+                    val allowedDomainsJson = data.optJSONArray("allowed_domains")
+                    if (allowedDomainsJson != null) {
+                        val domains = (0 until allowedDomainsJson.length()).map { allowedDomainsJson.getString(it) }
+                        fanMakerSDK!!.updateAllowedDomains(domains)
+                    }
+
                     fanMakerSDK!!.formatUrl { formattedUrl ->
                         webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
                     }
@@ -553,6 +625,141 @@ class FanMakerSDKWebView : AppCompatActivity() {
         // Unregister this activity (kept for backward compat; see register()).
         @Suppress("DEPRECATION")
         ActivityTracker.unregister(this)
+        releaseRunningKey(this)
         cameraExecutor.shutdown()
+    }
+
+    /**
+     * Load whatever destination is currently queued on the SDK instance.
+     *
+     * Used when a second launch arrives for a key that already has a webview
+     * open: rather than stacking a duplicate, the destination is handed to the
+     * webview already on screen. Without this a push tap while the SDK was
+     * open would be deduplicated into doing nothing at all.
+     */
+    /**
+     * Handles a launch that Android routed to this already-running activity
+     * rather than creating a second one.
+     *
+     * `present()` asks for that routing when a webview is already open for the
+     * key, so a repeat open - a push tap arriving while the SDK is on screen,
+     * say - reuses this screen and navigates it, instead of stacking a copy the
+     * fan then has to back out of twice.
+     */
+    override fun onNewIntent(newIntent: Intent) {
+        super.onNewIntent(newIntent)
+        setIntent(newIntent)
+
+        val incomingKey = newIntent.getStringExtra("fanMakerKey")
+        if (incomingKey == null || incomingKey != boundKey) {
+            // Android matched on the activity class, which is shared by every
+            // instance, so a different key can land here. That one needs its
+            // own screen rather than this one navigating away from the fan who
+            // is looking at it.
+            Log.i(TAG, "ignoring a re-launch for key '$incomingKey'; this screen belongs to '$boundKey'")
+            return
+        }
+
+        val sdk = FanMakerSDKs.getInstance(this, incomingKey) ?: return
+
+        // Same validation as a cold launch: the extra is untrusted, because
+        // this activity is exported.
+        newIntent.getStringExtra("fanMakerDeepLink")?.let { requested ->
+            when {
+                requested.startsWith("/") ->
+                    if (sdk.openPath(requested)) {
+                        Log.i(TAG, "re-launch destination: $requested")
+                    } else {
+                        Log.e(TAG, "ignoring fanMakerDeepLink extra, not a usable path: $requested")
+                    }
+                sdk.openUrl(requested) -> Log.i(TAG, "re-launch destination: $requested")
+                else -> Log.e(
+                    TAG,
+                    "ignoring fanMakerDeepLink extra, not a first-party destination: $requested"
+                )
+            }
+        }
+
+        Log.i(TAG, "reusing the open webview for key '$incomingKey'")
+        loadPendingDestination(sdk)
+    }
+
+    internal fun loadPendingDestination(sdk: FanMakerSDK) {
+        if (isFinishing || isDestroyed) return
+        if (sdk.deepLinkUrl.isEmpty()) return
+        sdk.formatUrl { formattedUrl ->
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val view = findViewById<WebView>(R.id.fanmaker_sdk_webview)
+                if (view == null) {
+                    Log.e(TAG, "no webview to hand the destination to")
+                    return@runOnUiThread
+                }
+                Log.i(TAG, "loading destination handed over from a duplicate launch: $formattedUrl")
+                view.loadUrl(formattedUrl, sdk.webViewHeaders())
+            }
+        }
+    }
+
+    companion object {
+        private const val TAG = "FanMakerSDKWebView"
+
+        // Live webviews by fanMakerKey. Weak, so an activity that went away
+        // without onDestroy running cannot hold a key hostage - a stale entry
+        // is pruned on the next look rather than blocking relaunch forever.
+        // Process-scoped by nature, so a killed process starts clean.
+        private val runningByKey = mutableMapOf<String, java.lang.ref.WeakReference<FanMakerSDKWebView>>()
+
+        private fun prune() {
+            runningByKey.entries.removeAll { (_, ref) ->
+                val activity = ref.get()
+                activity == null || activity.isFinishing || activity.isDestroyed
+            }
+        }
+
+        /** Keys that currently have a webview on screen. */
+        @JvmStatic
+        val runningKeys: Set<String>
+            get() = synchronized(runningByKey) {
+                prune()
+                runningByKey.keys.toSet()
+            }
+
+        /** Whether [key] already has a webview on screen. */
+        @JvmStatic
+        fun isRunning(key: String): Boolean = synchronized(runningByKey) {
+            prune()
+            runningByKey.containsKey(key)
+        }
+
+        /** Finishes the webview open for [key], if there is one. */
+        @JvmStatic
+        fun finishRunning(key: String) {
+            val activity = liveActivityFor(key) ?: return
+            activity.runOnUiThread {
+                if (!activity.isFinishing && !activity.isDestroyed) activity.finish()
+            }
+        }
+
+        private fun liveActivityFor(key: String): FanMakerSDKWebView? = synchronized(runningByKey) {
+            prune()
+            runningByKey[key]?.get()
+        }
+
+        private fun claimRunningKey(key: String, activity: FanMakerSDKWebView) {
+            synchronized(runningByKey) {
+                prune()
+                runningByKey[key] = java.lang.ref.WeakReference(activity)
+            }
+        }
+
+        private fun releaseRunningKey(activity: FanMakerSDKWebView) {
+            synchronized(runningByKey) {
+                runningByKey.entries.removeAll { (_, ref) ->
+                    val held = ref.get()
+                    held == null || held === activity
+                }
+            }
+        }
     }
 }
