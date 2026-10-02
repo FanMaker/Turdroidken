@@ -195,9 +195,44 @@ class MainActivity : AppCompatActivity() {
 
 ### Displaying FanMaker UI
 
-In order to show FanMaker UI in your app, use the provided `FanMakerSDKWebView` class as part of your usual `Intent` call. Note: it is important that you pass your `<DEV_DEFINED_KEY>` as an extra of the intent so that the `FanMakerWebView` is able to find the `FanMakerSDK` instance to use.
-
+```kotlin
+fanMakerSDK1?.present(this)
 ```
+
+That is the whole integration. The SDK builds and starts its own activity, and
+closes it again when the fan is done — the system back gesture always works, and
+web content triggering the close action finishes it too.
+
+To open a specific page, pass a path:
+
+```kotlin
+fanMakerSDK1?.present(this, "/store")
+```
+
+`present()` returns whether it started the activity. It returns `false` when the
+SDK has not been initialized, or when this instance was built directly rather than
+registered through `FanMakerSDKs.setInstance` — in which case it has no key to
+launch with, and refuses rather than starting an activity that would immediately
+fail to resolve it.
+
+`isPresenting` reports whether this instance currently has a screen on display, and
+`dismiss()` closes one from your own code.
+
+Only one webview is open per key at a time. Launching again while a screen is up
+hands the new destination to the screen already open rather than stacking a copy the
+fan has to back out of twice.
+
+#### Building the intent yourself (legacy)
+
+> **Still fully supported, but no longer recommended.** New integrations should use
+> `present()` above. This path asks every host to know the SDK's activity class and
+> to attach the dev-defined key as a `"fanMakerKey"` extra — a magic string that
+> fails silently when it is wrong or missing, which is a common source of
+> integration problems. We intend to keep it working, and to move new integrations
+> onto `present()`. Expect it to be formally deprecated in a future release; it will
+> not be removed without notice and a migration path.
+
+```kotlin
 import com.fanmaker.sdk.FanMakerSDKWebView
 
 class MyActivity : AppCompatActivity() {
@@ -210,7 +245,10 @@ class MyActivity : AppCompatActivity() {
 }
 ```
 
-Then you can call `openFanMakerSDKWebView` when user taps a button, for example.
+A push notification can also name its destination directly on the intent, with a
+`"fanMakerDeepLink"` extra — either a path such as `/store` or a first-party URL.
+Anything else is refused, because the activity is exported and the extra therefore
+comes from an untrusted caller.
 
 #### Displaying FanMaker UI as a Fragment
 
@@ -772,6 +810,152 @@ class MainActivity : AppCompatActivity() {
         ...
     }
 ```
+
+## Upgrading from 4.0.x
+
+**This is a drop-in update.** Nothing was removed or changed shape: the public API
+of the AAR is purely additive against 4.0.3, verified by diffing the compiled
+class surface. Existing integrations compile and link unchanged, including code
+already compiled against 4.0.3 such as a vendored copy inside a third-party
+plugin. No code change is required.
+
+There are, however, four behaviour changes worth knowing about, because they
+take effect on update whether or not you touch your code.
+
+### Identifiers now survive process death — call `logout()` on sign-out
+
+Identifiers used to live only in memory, so they were lost whenever the app
+process was killed and had to be re-supplied on every cold start. They are now
+persisted and rehydrated, which is what most integrations expected all along.
+
+The consequence is that **process death is no longer an implicit reset.** Add an
+explicit one to your sign-out path:
+
+```
+fanMakerSDK?.logout()
+```
+
+`logout()` forgets the fan completely: every identifier, the FanMaker session
+token, and the auto-login user token.
+
+**Use `logout()`, not `clearIdentifiers()`.** Clearing identifiers is not a
+sign-out. The session token is what actually authenticates the fan — it is sent
+as `X-FanMaker-SessionToken` and `Authorization` — so clearing only the
+identifiers leaves the next person to open the webview logged in as the previous
+fan, whatever the identifiers say. Nothing in the SDK cleared that token before
+this release, so ending a session was not previously possible at all;
+`clearIdentifiers()` remains available for the narrower job its name describes.
+
+A value you pass to the constructor still wins over a persisted one, so only
+empty fields are ever rehydrated.
+
+Note that identifiers are deliberately restored whether or not a session token
+is present. They are the *input* to auto-login — the SDK posts them to
+`site/auth/auto_login` when composing the webview URL — so a returning fan whose
+token has gone is exactly the case that needs them. `clearSessionToken()` is
+available if you want to force a re-authentication while keeping the identifiers
+that make it possible.
+
+### Deep links are claimed more broadly
+
+`canOpenUrl` used to return true only for a literal `fanmaker` hostname. It now
+also claims a first-party web link — an `http(s)` URL whose host is your NUX
+host or one of the site's allowed domains. The literal `fanmaker` form keeps
+working.
+
+If your app asks `canOpenUrl` before deciding where a link goes, a first-party
+link that previously fell through to your own browser handling will now open
+inside the FanMaker webview. That is the intended fix, but it is a routing
+change on update.
+
+`handleUrl` still returns `Unit` and ignores whether the URL was claimed. Use
+the new `openUrl` when you want that answer:
+
+```
+if (!fanMakerSDK!!.openUrl(url)) {
+    // not ours - handle it yourself
+}
+```
+
+And `openPath` queues a destination with no hostname convention at all, which is
+usually what you want for a push notification's `click_action`:
+
+```
+fanMakerSDK?.openPath("/store")
+```
+
+A queued destination is persisted so a push tap that starts a cold process does
+not lose it, and is discarded after ten minutes so one that was never opened
+cannot resurface on an unrelated launch.
+
+### Auto Checkin recovers a ping it used to drop
+
+If you enable location tracking *after* registering the lifecycle observer, the
+first ping used to be lost for the whole session, because `locationEnabled`
+defaults to false and nothing re-fired it. Enabling tracking while the app is
+foregrounded now sends that ping.
+
+Expect one `events/auto_checkin` request on cold start where previously there
+was none. Call order no longer matters, so the ordering advice elsewhere in this
+README is now a preference rather than a requirement.
+
+### Composed deep link URLs lost a stray slash
+
+`formatUrl` produced a doubled slash — `https://host//store` — for every deep
+link, including the legacy shape. It now produces `https://host/store`. Only
+relevant if something on your side matched on the old form.
+
+### One webview per key, and cold-start launches
+
+Two changes to how `FanMakerSDKWebView` starts, both of which apply without any
+code change on your side.
+
+**A second launch for a key that already has a webview open no longer stacks a
+duplicate.** The destination from the second launch is handed to the webview
+already on screen and the duplicate closes itself, so a fan does not end up
+backing out of the same screen twice. Deduplication is per key, so separate
+instances can each have their own webview open. If you want to check before
+launching:
+
+```
+if (!FanMakerSDKWebView.isRunning("<DEV_DEFINED_KEY>")) {
+    startActivity(fanmakerIntent)
+}
+```
+
+`FanMakerSDKWebView.runningKeys` lists the keys with a webview currently on
+screen.
+
+**The webview can now start in a process that has not run your `setInstance`
+calls yet.** This is what a push notification does: tapping it can start the
+activity cold, before your `MainActivity` has initialized anything. Previously
+that failed with `Failed to get instance of FanMakerSDK` and the activity
+closed immediately. The api key for each dev-defined key is now remembered, so
+the SDK rebuilds the instance itself. The session token and identifiers already
+persist, so a rebuilt instance works straight away.
+
+You still have to call `setInstance` at least once, on some earlier run, for a
+key to be rebuildable — the SDK cannot invent an api key it has never been
+given.
+
+A rebuilt instance carries no host-supplied callbacks or parameters: `onClose`,
+`onActionTriggered` and `fanMakerParameters` are whatever a fresh instance has.
+Closing therefore falls back to the SDK closing its own activity, which is the
+documented default when `onClose` is null. If your integration depends on those,
+set them as usual when your app does initialize; the rebuilt instance is
+replaced by yours the moment you call `setInstance`.
+
+`FanMakerSDKs.getInstance(key)` is unchanged and still resolves only what this
+process registered. The rebuilding behaviour is on a new overload that takes a
+Context, `FanMakerSDKs.getInstance(context, key)`, which is what the SDK's own
+activity and fragment now use. Prefer it anywhere reachable from a notification.
+
+### Minification
+
+The SDK now ships consumer ProGuard rules. If you enabled R8 or ProGuard, beacon
+ranging previously crashed your process; that is fixed, and the rules are applied
+automatically. If you added the AltBeacon `RssiFilter` keep rule to your own
+`proguard-rules.pro` as a workaround, it is harmless to leave in place.
 
 ## Upgrading to 2.0 from 1.x
 
