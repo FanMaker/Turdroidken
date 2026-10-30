@@ -169,7 +169,11 @@ class FanMakerSDKWebViewFragment : Fragment() {
             return viewBinding.root
         }
 
-        val fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey)
+        // Context-aware lookup so a fragment host started from a push tap can
+        // rebuild the instance rather than failing to resolve it. The one-webview
+        // -per-key rule is deliberately not applied here: a fragment's lifecycle
+        // belongs to the host activity that placed it.
+        val fanMakerSDK = FanMakerSDKs.getInstance(requireContext(), fanMakerKey)
         if (fanMakerSDK == null) {
             Log.e("FanMakerSDKWebViewFragment", "Failed to get instance of FanMakerSDK.")
             return viewBinding.root
@@ -204,6 +208,11 @@ class FanMakerSDKWebViewFragment : Fragment() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 super.onPageFinished(view, url)
                 loadingFrame.visibility = FrameLayout.GONE
+            }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                if (request != null && fanMakerSDK?.openTappedExternalLink(requireContext(), view?.url, request) == true) return true
+                return super.shouldOverrideUrlLoading(view, request)
             }
         }
 
@@ -334,8 +343,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
                 val status = response.getInt("status")
                 if (status == 200) {
                     val data = response.getJSONObject("data")
-                    val sdk_url = data.getString("url")
-                    fanMakerSDK!!.updateBaseUrl(sdk_url)
+                    fanMakerSDK!!.applySiteDetails(data)
                     fanMakerSDK!!.formatUrl { formattedUrl ->
                         Log.w("FanMakerSDK", formattedUrl)
                         webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())
