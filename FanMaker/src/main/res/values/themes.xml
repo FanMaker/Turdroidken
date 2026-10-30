@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+      The theme for the SDK's own webview activity.
+
+      Without this the activity inherited whatever theme the host application
+      set, so on a host whose theme has an action bar the SDK's screen appeared
+      with the *host app's* name in a header above FanMaker content - exactly
+      the "no wrapper, header, or logos from the primary app" rule the
+      integration checklist sets, broken by nothing the host did wrong.
+
+      Declaring the theme here rather than hiding the bar at runtime means it
+      never exists, so there is no frame in which it is visible.
+
+      Deliberately not a DayNight theme: the loading screen's colours are the
+      SDK's own, set programmatically from useDarkLoadingScreen and
+      loadingBackgroundColor, and following the system light/dark setting would
+      fight those. The window background matches the dark loading screen, which
+      is the default, so there is no flash before the loading frame draws.
+    -->
+    <style name="Theme.FanMakerSDK" parent="Theme.AppCompat.NoActionBar">
+        <item name="android:windowActionBar">false</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+
+</resources>

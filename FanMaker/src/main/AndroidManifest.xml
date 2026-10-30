@@ -12,7 +12,12 @@
     <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <application>
-        <activity android:name=".FanMakerSDKWebView" android:exported="true" />
+        <!-- Not exported: only the host app starts it, with an explicit intent
+             or present(). Exported, any app on the device could open it. -->
+        <activity
+            android:name=".FanMakerSDKWebView"
+            android:exported="false"
+            android:theme="@style/Theme.FanMakerSDK" />
         
         <provider
             android:name="FanMakerSDKFileProvider"

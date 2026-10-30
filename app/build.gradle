@@ -3,6 +3,14 @@ plugins {
     id 'kotlin-android'
 }
 
+// The sample app needs a real site token to load real content. It lives in
+// local.properties, which is gitignored, so no credential reaches a commit.
+// Add a line like:  fanmakerSiteToken=<token>
+def sampleProps = new Properties()
+def samplePropsFile = rootProject.file('local.properties')
+if (samplePropsFile.exists()) { samplePropsFile.withInputStream { sampleProps.load(it) } }
+def fanmakerSiteToken = sampleProps.getProperty('fanmakerSiteToken', '<SDK_KEY_1>')
+
 android {
     namespace 'com.example.turducken'
     compileSdk 35
@@ -15,12 +23,26 @@ android {
         versionName "1.0"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField "String", "FANMAKER_SITE_TOKEN", "\"${fanmakerSiteToken}\""
     }
 
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+        }
+        // Minified build type. The SDK ships consumer-rules.pro, but nothing in
+        // this repo ever ran R8, so no keep rule was ever exercised and
+        // consumer-rules.pro sat empty and unnoticed. This build type is the
+        // regression harness for that: it minifies, and it is debug-signed so
+        // it installs on a device without release keys.
+        minified {
+            initWith release
+            minifyEnabled true
+            shrinkResources true
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
         }
     }
     compileOptions {
@@ -32,6 +54,7 @@ android {
     }
 
     buildFeatures {
+        buildConfig = true
         compose = true
         viewBinding = true  // Keep for existing Views during migration
     }
@@ -61,8 +84,13 @@ dependencies {
     implementation 'com.google.android.material:material:1.12.0'
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'com.android.volley:volley:1.2.1'
-    // implementation project(':FanMaker')
-    implementation 'com.fanmaker.sdk:fanmaker:4.0.3'
+    // ./gradlew -PuseLocalSdk ... builds against the SDK sources in this repo
+    // instead of the published AAR, so SDK changes can be verified end to end.
+    if (project.hasProperty('useLocalSdk')) {
+        implementation project(':FanMaker')
+    } else {
+        implementation 'com.fanmaker.sdk:fanmaker:4.0.3'
+    }
 
     // Updated test dependencies
     testImplementation 'junit:junit:4.13.2'
