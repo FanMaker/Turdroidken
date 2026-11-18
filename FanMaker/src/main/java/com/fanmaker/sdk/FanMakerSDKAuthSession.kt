@@ -71,6 +71,9 @@ internal class FanMakerSDKAuthSession(
             // back through the host app's own deep link for the scheme.
             Log.i(TAG, "opening ${request.url} in a Custom Tab, browser $browser has no Auth Tab")
             CustomTabsIntent.Builder().build().launchUrl(context, request.url)
+            // No result comes back from a Custom Tab, so say so now: the page
+            // must not wait on this sign-in.
+            report("browser")
         }
     }
 
@@ -79,7 +82,11 @@ internal class FanMakerSDKAuthSession(
         val returned = result.resultUri
         if (result.resultCode == AuthTabIntent.RESULT_OK && returned != null && sdk.openUrl(returned.toString())) {
             Log.i(TAG, "sign-in returned ${withoutSignInKey(returned.toString())}")
-            loadDestination(sdk)
+            // Android can rebuild this screen while the Auth Tab is up. Until
+            // the rebuilt one loads, its own first load takes the destination;
+            // loading it here as well raced that load, which could put the home
+            // page over the sign-in.
+            if (webView()?.url != null) loadDestination(sdk)
             return
         }
         Log.i(TAG, "authSession ended without a sign-in: result ${result.resultCode} ${returned?.let { withoutSignInKey(it.toString()) } ?: ""}")
