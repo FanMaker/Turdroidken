@@ -13,9 +13,14 @@ import androidx.webkit.WebViewFeature
 /**
  * Runs sign-ins that can't work inside a webview in an Auth Tab instead:
  * passkeys are bound to the provider's own domain, and some identity
- * providers refuse embedded webviews outright. The Auth Tab shares the
- * browser's sign-ins and passkeys and hands back the link the sign-in ends
- * on, which loads into the webview like any deep link. FanMaker/NUX#907.
+ * providers refuse embedded webviews outright. The Auth Tab hands back the
+ * link the sign-in ends on, which loads into the webview like any deep link.
+ * FanMaker/NUX#907.
+ *
+ * Private (ephemeral) browsing, so a sign-in neither uses nor changes the
+ * fan's own browser session. Ticketmaster's flow signs the fan out of
+ * Ticketmaster before signing in; in a shared session that signed them out
+ * of their own browser on every FanMaker login. Passkeys still work.
  *
  * A page asks with
  * `window.fanmakerAuthSession.postMessage(JSON.stringify({ url, callbackScheme }))`.
@@ -65,12 +70,13 @@ internal class FanMakerSDKAuthSession(
         val browser = CustomTabsClient.getPackageName(context, null)
         if (browser != null && CustomTabsClient.isAuthTabSupported(context, browser)) {
             Log.i(TAG, "opening ${request.url} in an Auth Tab")
-            AuthTabIntent.Builder().build().launch(launcher, request.url, request.callbackScheme)
+            AuthTabIntent.Builder().setEphemeralBrowsingEnabled(true).build()
+                .launch(launcher, request.url, request.callbackScheme)
         } else {
             // No Auth Tab in this browser: a Custom Tab, and the sign-in comes
             // back through the host app's own deep link for the scheme.
             Log.i(TAG, "opening ${request.url} in a Custom Tab, browser $browser has no Auth Tab")
-            CustomTabsIntent.Builder().build().launchUrl(context, request.url)
+            CustomTabsIntent.Builder().setEphemeralBrowsingEnabled(true).build().launchUrl(context, request.url)
             // No result comes back from a Custom Tab, so say so now: the page
             // must not wait on this sign-in.
             report("browser")

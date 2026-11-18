@@ -488,7 +488,7 @@ The SDK decides for itself which links leave for the system browser — you don'
 It is deliberately narrow: only a tap that replaces the whole page, and only from one of our pages. Redirects, script-driven navigations, taps inside embedded frames and taps on a provider's own pages stay in the webview, because SSO and payment flows run *through* third-party pages and have to come back. Nothing is ejected before `site_details/sdk` has answered.
 
 #### Sign-ins that can't run in a webview
-Some providers' sign-ins don't work inside an embedded webview: Ticketmaster's passkeys are bound to ticketmaster.com, and some identity providers refuse embedded webviews outright. For those, FanMaker's page asks the SDK to run the sign-in in Chrome's **Auth Tab**, which shares the browser's sign-ins and passkeys and hands the link the sign-in ends on straight back to the SDK, which loads it into the webview. You don't wire anything up.
+Some providers' sign-ins don't work inside an embedded webview: Ticketmaster's passkeys are bound to ticketmaster.com, and some identity providers refuse embedded webviews outright. For those, FanMaker's page asks the SDK to run the sign-in in Chrome's **Auth Tab**, in a private session, so it neither uses nor changes the fan's own browser sign-ins. Passkeys work there, and the Auth Tab hands the link the sign-in ends on straight back to the SDK, which loads it into the webview. You don't wire anything up.
 
 If the fan's browser has no Auth Tab, the SDK opens a Custom Tab instead, and the sign-in comes back through your app's deep link for the site's scheme (`<scheme>://fanmaker/...`), which your app already hands to `openUrl` (see Deep Linking below).
 
