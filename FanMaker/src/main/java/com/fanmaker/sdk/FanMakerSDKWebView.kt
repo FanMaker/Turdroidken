@@ -69,6 +69,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
     // Activity Result Launcher for file chooser
     private lateinit var fileChooserLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
+    private lateinit var authSession: FanMakerSDKAuthSession
     // Activity Result Launcher for image picker (gallery)
     private lateinit var imagePickerLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest>
 
@@ -133,6 +134,13 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
         // Enable edge-to-edge display
         WindowCompat.setDecorFitsSystemWindows(window, false)
+
+        authSession = FanMakerSDKAuthSession(this,
+            context = { this },
+            sdk = { boundKey?.let { FanMakerSDKs.getInstance(this, it) } },
+            webView = { findViewById(R.id.fanmaker_sdk_webview) },
+            loadDestination = { loadPendingDestination(it) }
+        )
 
         // Register ActivityResultLauncher for file chooser
         fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -414,6 +422,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         )
 
         webView.addJavascriptInterface(jsInterface, "fanmaker")
+        authSession.attach(webView)
 
         val queue = Volley.newRequestQueue(this)
         val url = "${FanMakerSDKHttpRequest.URL}/site_details/sdk"
@@ -687,7 +696,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
                     Log.e(TAG, "no webview to hand the destination to")
                     return@runOnUiThread
                 }
-                Log.i(TAG, "loading destination handed over from a duplicate launch: $formattedUrl")
+                Log.i(TAG, "loading pending destination: ${withoutSignInKey(formattedUrl)}")
                 view.loadUrl(formattedUrl, sdk.webViewHeaders())
             }
         }

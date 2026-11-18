@@ -13,7 +13,7 @@ def fanmakerSiteToken = sampleProps.getProperty('fanmakerSiteToken', '<SDK_KEY_1
 
 android {
     namespace 'com.example.turducken'
-    compileSdk 35
+    compileSdk 36
 
     defaultConfig {
         applicationId "com.example.turducken"

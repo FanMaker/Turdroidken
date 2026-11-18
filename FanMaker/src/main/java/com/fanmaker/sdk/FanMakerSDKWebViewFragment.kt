@@ -61,6 +61,7 @@ import com.fanmaker.sdk.FanMakerSDKs
 class FanMakerSDKWebViewFragment : Fragment() {
     // Activity Result Launchers for file chooser and image picker
     private lateinit var fileChooserLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
+    private lateinit var authSession: FanMakerSDKAuthSession
     private lateinit var imagePickerLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest>
     private lateinit var fanMakerSDK: FanMakerSDK
     private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
@@ -123,6 +124,25 @@ class FanMakerSDKWebViewFragment : Fragment() {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        authSession = FanMakerSDKAuthSession(this,
+            context = { activity },
+            // Looked up by key, as the activity does: onCreateView keeps its
+            // instance in a local, and the fanMakerSDK property is never set.
+            sdk = {
+                val key = activity?.intent?.getStringExtra("fanMakerKey")
+                val context = context
+                if (key != null && context != null) FanMakerSDKs.getInstance(context, key) else null
+            },
+            webView = { view?.findViewById(R.id.fanmaker_sdk_webview) },
+            loadDestination = { sdk ->
+                sdk.formatUrl { url ->
+                    activity?.runOnUiThread {
+                        view?.findViewById<WebView>(R.id.fanmaker_sdk_webview)?.loadUrl(url, sdk.webViewHeaders())
+                    }
+                }
+            }
+        )
+
         // Register ActivityResultLauncher for file chooser
         fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
@@ -331,6 +351,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         )
 
         webView.addJavascriptInterface(jsInterface, "fanmaker")
+        authSession.attach(webView)
 
         val queue = Volley.newRequestQueue(requireActivity())
         val url = "${FanMakerSDKHttpRequest.URL}/site_details/sdk"

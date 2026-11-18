@@ -17,6 +17,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ActivityNotFoundException
 import android.webkit.WebResourceRequest
+import org.json.JSONException
 import org.json.JSONObject
 import android.content.SharedPreferences
 
@@ -645,6 +646,33 @@ class FanMakerSDK(
         val lower = host.lowercase()
         if (allowedDomains.contains(lower)) return true
         return Uri.parse(baseUrl).host?.lowercase() == lower
+    }
+
+    /** A fanmaker.com host, the site's own host or one it allows. Fails closed. */
+    private fun isOwnHost(host: String?): Boolean {
+        val lower = host?.lowercase() ?: return false
+        return lower == "fanmaker.com" || lower.endsWith(".fanmaker.com") || isFirstPartyHost(lower)
+    }
+
+    /** A sign-in a page asked to run in an Auth Tab: where it starts, and the scheme of the link it ends on. */
+    internal data class AuthSessionRequest(val url: Uri, val callbackScheme: String)
+
+    /**
+     * The sign-in an authSession message asks for, or null when it has to be
+     * refused. The Auth Tab's result is a sign-in link the webview then
+     * follows, so only one of our own pages may ask - a page we don't own
+     * could otherwise end the session on someone else's sign-in - and only for
+     * an https start URL on one of our hosts. Same rule as the iOS SDK.
+     */
+    internal fun authSessionRequest(json: String?, originHost: String?): AuthSessionRequest? {
+        if (!isOwnHost(originHost)) return null
+        val body = try { JSONObject(json ?: return null) } catch (e: JSONException) { return null }
+        val url = Uri.parse(body.optString("url"))
+        if (url.scheme?.lowercase() != "https" || !isOwnHost(url.host)) return null
+        val scheme = body.optString("callbackScheme").lowercase()
+        if (!scheme.matches(Regex("[a-z][a-z0-9+.-]*")) ||
+            scheme in setOf("http", "https", "javascript", "data", "file", "about", "intent", "content")) return null
+        return AuthSessionRequest(url, scheme)
     }
 
     /**
