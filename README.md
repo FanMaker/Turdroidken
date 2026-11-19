@@ -1,8 +1,43 @@
-# FanMaker SDK for Android App Development
+# Fanmaker SDK for Android App Development
 
 ## About
 
-The FanMaker SDK provides Android developers with a way of inserting the FanMaker UI in another app. The view can be displayed as any other Android Activity.
+The Fanmaker SDK lets Android developers show the Fanmaker UI inside their own app. The SDK opens it as its own Activity, or you can embed it as a Fragment.
+
+## What's new in 4.1.0 (upgrading from 4.0.x)
+
+Every call this README documented for 4.0.3 still works, including code already compiled against 4.0.3. A few changes need your attention.
+
+### Do this when you upgrade
+
+- **Compile against API 36.** Set `compileSdk 36` or higher. The SDK now depends on `androidx.browser` 1.9.0, which requires it. See [Step 3](#step-3--update-buildgradle-inside-the-application-module).
+- **Call `logout()` when a fan signs out of your app.** Identifiers are now saved on the device, as the Fanmaker session already was, so restarting the app clears neither. Without `logout()`, the next person to open the Fanmaker UI on that device is signed in as the previous fan. `logout()` also clears the SDK webview's cookies and stored website data, and leaves your own WebViews alone. See [Signing out](#signing-out).
+- **If your manifest re-declares `FanMakerSDKWebView`, update it.** The SDK now declares it as not exported, with its own theme. Move any intent filter to your own activity, because links from outside your app can no longer reach `FanMakerSDKWebView` (see [Deep Linking](#deep-linking--universal-links)). An `android:exported` or `android:theme` value of your own on it now conflicts with the SDK's when the manifests merge.
+
+### Recommended
+
+- **Open the UI with `present()`.** `fanMakerSDK.present(this)` or `present(this, "/store")` replaces building an `Intent` with a `"fanMakerKey"` extra. See [Displaying Fanmaker UI](#displaying-fanmaker-ui).
+- **Hand links to the SDK with `openUrl()` or `openPath()`.** `openUrl` tells you whether the SDK took the link; `openPath` takes a bare path such as `/store`. See [Deep Linking](#deep-linking--universal-links).
+- **Use `FanMakerSDKs.getInstance(context, key)` in code a push notification can reach.** It rebuilds the instance when a notification tap starts your app before your app has called `setInstance`. See [Opening the SDK from a push notification](#opening-the-sdk-from-a-push-notification).
+- **If you use beacons, keep them scanning in the background with `enableForegroundServiceScanning()`.** It needs three manifest entries. See [Scanning in the background](#scanning-in-the-background).
+
+### Changes you may notice
+
+- The Fanmaker UI now keeps its cookies and site data apart from your app's own WebViews, so a fan may need to sign in to the Fanmaker UI once after the update.
+
+### Works better with no change from you
+
+- Sign-ins that can't run in a webview, such as Ticketmaster passkeys, run in a private Chrome Auth Tab and come back to the Fanmaker UI. See [Sign-ins that can't run in a webview](#sign-ins-that-cant-run-in-a-webview).
+- A link the fan taps on a Fanmaker page that leads to another site opens in the system browser. See [Links out of the webview](#links-out-of-the-webview).
+- Opening the UI while it is already on screen reuses that screen instead of stacking a second copy.
+- A notification tap that starts your app cold can open the Fanmaker UI, as long as your app has called `setInstance` for that key at least once since updating to this version.
+- `canOpenUrl` and `handleUrl` also accept `https` links to your site's host, not only the `fanmaker` host form. If your app checks `canOpenUrl` before routing a link, those links now go to the SDK.
+- Deep links keep their percent-encoding and no longer get a doubled slash. A queued destination survives an app restart, and is discarded on restart once it is more than ten minutes old.
+- Identifiers you set survive app restarts, so you only need to set them when they change.
+- Auto Checkin no longer misses its first location ping when you set `locationEnabled = true` after adding the lifecycle observer.
+- Apps that minify with R8 or ProGuard no longer crash when beacon ranging starts. The SDK ships its own keep rules; a keep rule you added for AltBeacon's `RssiFilter` can stay or go.
+- The Fanmaker UI no longer shows your app's name in an action bar, even if your manifest gives `FanMakerSDKWebView` a theme of your own.
+- The webview sends your app's display name, version and package name, and the device's OS version and model, so Fanmaker can record which app and SDK version a device uses.
 
 ## Successful Implementation Checklist
 
@@ -29,10 +64,13 @@ The items below are **required for certification**.
 - [ ] **Deep link handling**
   - [Implemented](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#deep-linking--universal-links)
   - Functioning as expected
+- [ ] **Sign-out handled** *(required only if your app has its own sign-in)*
+  - [`logout()`](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#signing-out) called whenever a fan signs out of your app
+  - The next fan's identifiers set only after they sign in
 
-Additional features—such as
-[logged-in user handling](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#passing-custom-identifiers) or
-[privacy permissions](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#privacy-permissions-optional)
+Additional features, such as
+[logged-in user handling](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#passing-custom-identifiers) and
+[privacy permissions](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#privacy-permissions-optional), are optional.
 
 The checklist above represents the **minimum required for a certified integration**.
 
@@ -117,16 +155,18 @@ allprojects {
 - inside dependencies of the build.gradle of app module, use the following code
 ```markdown
 dependencies {
-    implementation 'com.fanmaker.sdk:fanmaker:4.0.3'
+    implementation 'com.fanmaker.sdk:fanmaker:4.1.0'
 	...
 }
 ```
 > **Note**: Volley is bundled as a transitive dependency of the SDK — you do not need to add it separately.
 
-- inside the build.gradle of your app module, make sure you set the `compileSdk`, `targetSdk`, and `minSdk` values:
+> **Note**: The SDK ships R8/ProGuard keep rules for the beacon library it uses, applied automatically when your app minifies.
+
+- inside the build.gradle of your app module, make sure you set the `compileSdk`, `targetSdk`, and `minSdk` values. `compileSdk` must be 36 or higher: the SDK depends on `androidx.browser` 1.9.0, which requires it. `minSdk` must be 24 or higher.
 ```markdown
   android {
-    compileSdk 35
+    compileSdk 36
     ...
 
     defaultConfig {
@@ -169,22 +209,27 @@ NOTE: if you are targeting SDK Version 31 or Higher, you need to make sure any a
 
 ### Initialization
 
-To initialize the SDK you need to pass a `DEV_DEFINED_KEY` and your `SDK_KEY` into the FanMaker SDK initializer. You need to call this code in your `MainActivity` class as part of your `onCreate` callback function. You can setup multiple instances of the FanMakerSDK by passing calling `setInstance` on the `FanMakerSDKs` class with a different `<DEV_DEFINED_KEY>` and a secondary `<SDK_KEY>`
+To initialize the SDK you need to pass a `DEV_DEFINED_KEY` and your `SDK_KEY` into the Fanmaker SDK initializer. You need to call this code in your `MainActivity` class as part of your `onCreate` callback function. You can set up multiple instances of the `FanMakerSDK` by calling `setInstance` on the `FanMakerSDKs` class with a different `<DEV_DEFINED_KEY>` and a secondary `<SDK_KEY>`.
 
-```
+```kotlin
 import com.fanmaker.sdk.FanMakerSDK
 import com.fanmaker.sdk.FanMakerSDKs
 
 class MainActivity : AppCompatActivity() {
+    var fanMakerSDK: FanMakerSDK? = null
+    var fanMakerSDK2: FanMakerSDK? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        // FanMaker SDK Initialization
-        fanMakerSDK = FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY>")
+        // Fanmaker SDK Initialization
+        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY>", "<SDK_KEY>")
+        fanMakerSDK = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
 
         // Initialize a secondary FanMakerSDK Instance
-        fanMakerSDK2 = FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY_2>", "<SDK_KEY_2>")
+        FanMakerSDKs.setInstance(this, "<DEV_DEFINED_KEY_2>", "<SDK_KEY_2>")
+        fanMakerSDK2 = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY_2>")
 
         . . .
     }
@@ -193,44 +238,37 @@ class MainActivity : AppCompatActivity() {
 }
 ```
 
-### Displaying FanMaker UI
+`FanMakerSDKs.getInstance(key)` returns the instance your app registered in this process, or `null`. `FanMakerSDKs.getInstance(context, key)` also rebuilds an instance your app registered on an earlier run; use it in code a push notification can reach (see [Opening the SDK from a push notification](#opening-the-sdk-from-a-push-notification)).
+
+### Displaying Fanmaker UI
 
 ```kotlin
-fanMakerSDK1?.present(this)
+fanMakerSDK?.present(this)
 ```
 
-That is the whole integration. The SDK builds and starts its own activity, and
-closes it again when the fan is done — the system back gesture always works, and
-web content triggering the close action finishes it too.
+`present()` starts the SDK's own activity, `FanMakerSDKWebView`. Call it from an Activity and pass that Activity. The fan closes the screen with the system back gesture, or the Fanmaker page closes it (see [Closing the SDK from Web Content](#closing-the-sdk-from-web-content)).
 
 To open a specific page, pass a path:
 
 ```kotlin
-fanMakerSDK1?.present(this, "/store")
+fanMakerSDK?.present(this, "/store")
 ```
 
-`present()` returns whether it started the activity. It returns `false` when the
-SDK has not been initialized, or when this instance was built directly rather than
-registered through `FanMakerSDKs.setInstance` — in which case it has no key to
-launch with, and refuses rather than starting an activity that would immediately
-fail to resolve it.
+`present()` returns `true` when it started the screen. It returns `false` when:
 
-`isPresenting` reports whether this instance currently has a screen on display, and
-`dismiss()` closes one from your own code.
+- the instance isn't initialized;
+- the instance was built with the `FanMakerSDK` constructor instead of registered with `FanMakerSDKs.setInstance`, so it has no key to launch with;
+- the path is empty or carries a scheme or host. Use [`openUrl`](#deep-linking--universal-links) for a full URL.
 
-Only one webview is open per key at a time. Launching again while a screen is up
-hands the new destination to the screen already open rather than stacking a copy the
-fan has to back out of twice.
+`isPresenting` tells you whether this instance has a screen open, and `dismiss()` closes it from your own code.
+
+Only one screen is open per key. Calling `present()` again while the screen is open brings it to the front and navigates it to the new path, instead of opening a second copy.
+
+`present()`, `isPresenting` and `dismiss()` work with `FanMakerSDKWebView` only. To embed the UI in your own screen, see [Displaying Fanmaker UI as a Fragment](#displaying-fanmaker-ui-as-a-fragment).
 
 #### Building the intent yourself (legacy)
 
-> **Still fully supported, but no longer recommended.** New integrations should use
-> `present()` above. This path asks every host to know the SDK's activity class and
-> to attach the dev-defined key as a `"fanMakerKey"` extra — a magic string that
-> fails silently when it is wrong or missing, which is a common source of
-> integration problems. We intend to keep it working, and to move new integrations
-> onto `present()`. Expect it to be formally deprecated in a future release; it will
-> not be removed without notice and a migration path.
+> **Still supported, but no longer recommended.** New integrations should use `present()`. Building the intent yourself means attaching the dev-defined key as a `"fanMakerKey"` extra. This path will not be removed without notice and a migration path.
 
 ```kotlin
 import com.fanmaker.sdk.FanMakerSDKWebView
@@ -245,17 +283,15 @@ class MyActivity : AppCompatActivity() {
 }
 ```
 
-A push notification can also name its destination directly on the intent, with a
-`"fanMakerDeepLink"` extra — either a path such as `/store` or a first-party URL.
-Anything else is refused: the destination usually comes from a push payload.
+The intent can also carry its destination in a `"fanMakerDeepLink"` extra: a path such as `/store`, or a link [`openUrl`](#deep-linking--universal-links) accepts. The SDK ignores anything else.
 
-`FanMakerSDKWebView` is not exported, so only your app can start it. Route incoming
-links through your own activity and `openUrl` / `present` (see Deep Links below)
-rather than giving the SDK's activity an intent filter.
+A second launch for a key that already has a screen open hands its destination to that screen and closes itself. `FanMakerSDKWebView.isRunning("<DEV_DEFINED_KEY>")` and `FanMakerSDKWebView.runningKeys` tell you which keys have a screen open.
 
-#### Displaying FanMaker UI as a Fragment
+`FanMakerSDKWebView` is not exported, so only your app can start it. Route incoming links through your own activity (see [Deep Linking](#deep-linking--universal-links)) rather than giving the SDK's activity an intent filter.
 
-FanMaker SDK also provides a `FanMakerSDKWebViewFragment` class that can be embed into your own activity by dragging a Common -> Fragment component
+#### Displaying Fanmaker UI as a Fragment
+
+The Fanmaker SDK also provides a `FanMakerSDKWebViewFragment` class that you can embed in your own activity by dragging a Common -> Fragment component
 from the Palette in the Layout Design view or by adding the following code in your Layout xml file:
 
 ```
@@ -264,55 +300,47 @@ from the Palette in the Layout Design view or by adding the following code in yo
         android:name="com.fanmaker.sdk.FanMakerSDKWebViewFragment" />
 ```
 
-Like the `FanMakerSDKWebView` class, you will need to pass the "\<DEV_DEFINED_KEY\>" to it as well when you setup the intent:
-```
+The fragment reads the "\<DEV_DEFINED_KEY\>" from a `"fanMakerKey"` extra on its host activity's intent, so pass it when you start that activity (`FanMakerActivity` here is your own activity that holds the fragment):
+```kotlin
 fun openFanMakerSDKWebViewFragment(view: View) {
-        setupIdentifiers()
+    setupIdentifiers()
 
-        val intent = Intent(this, FanMakerActivity::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        startActivity(intent)
-    }
+    val intent = Intent(this, FanMakerActivity::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
+    startActivity(intent)
+}
 ```
+
+To open a specific page in the fragment, call `openPath` or `openUrl` (see [Deep Linking](#deep-linking--universal-links)) before you start the host activity.
 
 ### Closing the SDK from Web Content
 
-FanMaker web content can request that the SDK UI be dismissed by triggering a `close` action via `triggerAction()`. **The SDK handles this itself** — you do not need to write any close-handling code:
+Fanmaker web content can request that the SDK UI be dismissed by triggering a `close` action via `triggerAction()`. **The SDK handles this itself** — you do not need to write any close-handling code:
 
 - In **Activity** mode, `FanMakerSDKWebView` finishes itself.
 - In **Fragment** mode, `FanMakerSDKWebViewFragment` pops its back stack, or finishes its host activity if there is nothing to pop.
 
-No `ActivityTracker`, and no cross-activity `finish()`, is required.
-
 #### Handling the close yourself
 
-By default the SDK dismisses itself, so most integrations need no close code at all. If you want to run your own logic on close — a custom presentation, or deciding how a fragment host should close — set `onClose`. When `onClose` is set, the SDK will **not** auto-dismiss and hands control to you:
+If you want to run your own logic on close — a custom presentation, or deciding how a fragment host should close — set `onClose`. When `onClose` is set, the SDK will **not** auto-dismiss and hands control to you:
 
-```
-fanMakerSDK.onClose = { params ->
-    // Your own dismissal logic (pop a nav controller, hide a sheet, finish(), etc.)
+```kotlin
+val sdk = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>") ?: return
+sdk.onClose = { params ->
+    // Your own dismissal logic (pop a nav controller, hide a sheet, etc.)
+    // If present() opened the screen, close it with:
+    sdk.dismiss()
 }
 ```
 
 The `params` argument is the `HashMap<String, Any>?` parsed from the JSON the web content passed with the action.
 
-#### Deprecated: handling `close` in `onActionTriggered` + `ActivityTracker`
+#### Migrating from `ActivityTracker`
 
-**⚠️ Deprecated.** Before the SDK self-closed, integrations had to detect the `close` action inside `onActionTriggered` and finish the activity themselves via the `ActivityTracker` helper:
-
-```
-// No longer needed — the SDK now closes itself.
-fanMakerSDK1?.onActionTriggered = { action, params ->
-    if (action == "close") {
-        ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)
-    }
-}
-```
-
-This pattern is no longer necessary. `ActivityTracker` is retained for backward compatibility but is **deprecated and will be removed in a future release**. Remove any `ActivityTracker.finishActivity(...)` calls (and the `import com.fanmaker.sdk.ActivityTracker`) from your integration; set `onClose` instead if you need custom handling.
+Older integrations finished the activity themselves on the `close` action, by calling `ActivityTracker.finishActivity(FanMakerSDKWebView::class.java)` from `onActionTriggered`. That is no longer needed: remove those calls. `ActivityTracker` is deprecated and will be removed in a future release.
 
 ### Custom Loading Animation
 
-By default the FanMaker SDK displays a standard loading spinner while the WebView is loading. You can customize the loading animation. To replace the default spinner with your own animation, create an `animation-list` drawable in your app's `res/drawable/` directory:
+By default the Fanmaker SDK displays a standard loading spinner while the WebView is loading. You can customize the loading animation. To replace the default spinner with your own animation, create an `animation-list` drawable in your app's `res/drawable/` directory:
 
 ```xml
 <!-- res/drawable/my_custom_loading.xml -->
@@ -334,28 +362,28 @@ fanMakerSDK1!!.setLoadingAnimationDrawable(R.drawable.my_custom_loading)
 The custom animation will be centered on the loading screen.
 
 ### Deep Linking / Universal Links
-If you wish to link to something within the FanMaker SDK, you need to setup your application to accept URL Scheme or Universal Links, or know the resource you are trying to access.
+To open a link inside the Fanmaker UI, your app receives the link through an intent filter on one of your own activities, hands it to the SDK, and presents the UI. Don't put the intent filter on `FanMakerSDKWebView`: it is not exported, so links from outside your app can't reach it.
 
 An example of using a URL scheme to open app links:
 
-In your `AndroidManifest.xml` you will need to establish conditions by which your app will know to open. These will be in the `<intent-filter>` of your activity. It is important that you have the action of `android.intent.action.VIEW` and the categories of `android.intent.category.DEFAULT` and `android.intent.category.BROWSABLE`. Furthermore, it is highly recommended that you use the `launchMode` of `singleTask` to prevent multiple instances of the application from being opened when handling deep / universal links and to mitigate any issues related to the navigation stack.
+In your `AndroidManifest.xml` you will need to establish conditions by which your app will know to open. These will be in the `<intent-filter>` of your activity. It is important that you have the action of `android.intent.action.VIEW` and the categories of `android.intent.category.DEFAULT` and `android.intent.category.BROWSABLE`. Furthermore, it is highly recommended that you use the `launchMode` of `singleTask` to prevent multiple instances of the application from being opened when handling deep / universal links and to mitigate any issues related to the navigation stack. It also matters for sign-ins: on a phone without Chrome's Auth Tab, a sign-in finishes in a Custom Tab and returns through your app's link, and `singleTask` brings it back to the app that is already running instead of opening a second copy on top.
 
 ```
 ...
-<activity android:name=".MainActivity" android:exported="true" tools:replace="android:exported" android:launchMode="singleTask">
+<activity android:name=".MainActivity" android:exported="true" android:launchMode="singleTask">
     <intent-filter>
         <action android:name="android.intent.action.MAIN" />
         <category android:name="android.intent.category.LAUNCHER" />
     </intent-filter>
 
-    <!-- The android.intent.action.ViEW action is used for Deep Linking -->
+    <!-- The android.intent.action.VIEW action is used for Deep Linking -->
     <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
         <category android:name="android.intent.category.BROWSABLE" />
 
         <!--
-            Establish a scheme that you want to listen for to initialize the FanMaker SDK.
+            Establish a scheme that you want to listen for to open the Fanmaker SDK.
             Note: the host must be fanmaker or fanmaker.com to be recognized by the SDK.
         -->
         <data
@@ -369,213 +397,187 @@ In your `AndroidManifest.xml` you will need to establish conditions by which you
 ...
 ```
 
-In the example above, we have setup the host application to listen for the urls `turdroidken://fanmaker/*` and `turdroidkens://fanmaker/*`. NOTE: it is important that you use the `fanmaker` as the host in these situations. You may also listen to standard `https` schemes as long as you have a means of identifying that it will be routed to the FanMakerSDK later on.
+In the example above, the app listens for the URLs `turdroidken://fanmaker/*` and `turdroidken2://fanmaker/*`, one scheme per `FanMakerSDK` instance. Use `fanmaker` as the host for these links. You can also listen for `https` links, as long as you can tell which ones belong to the Fanmaker SDK.
 
+Back in your `MainActivity`, respond to these links when the activity is created:
 
-Back in your `MainActivity`, you will need to respond to these Deep Link / Universal Link events:
-
-```
+```kotlin
 override fun onCreate(savedInstanceState: Bundle?) {
     ...
-    if (intent?.action == Intent.ACTION_VIEW) { handleDeepLink(intent) } // handleDeepLink is identified in an example below
+    if (intent?.action == Intent.ACTION_VIEW) { handleDeepLink(intent) } // handleDeepLink is shown below
 }
 ```
 
-Additionally, you'll want to add a `onNewIntent` override function if you are using `android:launchMode="singleTask"` in your `AndroidManifest.xml`
-```
-// Assuming your applicaiton uses the android:launchMode="singleTask" attribute in the AndroidManifest.xml file
-// this method will be called when the app is already running and a new intent is received. Which is useful for deep linking.
-override fun onNewIntent(intent: Intent?) {
+and, because of `android:launchMode="singleTask"`, when a link arrives while the app is already running:
+
+```kotlin
+override fun onNewIntent(intent: Intent) {
     super.onNewIntent(intent)
     setIntent(intent)
-
-    // Check if this intent is started via a deep link and handle it
-    handleDeepLink(intent)  // handleDeepLink is identified in an example below
+    handleDeepLink(intent)
 }
 ```
 
-In this example, we have opted to make a method called `handleDeepLink` to check and handle the deep / universal link requests.
-```
-// Used for Deep / Universal Linking
+`handleDeepLink` picks the `FanMakerSDK` instance for the link's scheme, hands it the link with `openUrl`, and presents the UI:
+
+```kotlin
 import android.net.Uri
 
 class MainActivity : AppCompatActivity() {
-    // Declare FanMakerSDK instances you want to use
     var fanMakerSDK1: FanMakerSDK? = null
     var fanMakerSDK2: FanMakerSDK? = null
-
-    // Declare intents for the FanMakerSDKWebView and FanMakerActivity
-    lateinit var fanmakerIntent1: Intent
-    lateinit var fanmakerIntent2: Intent
-
-
-    // This method is used to handle deep link requests
-    private fun handleDeepLink(intent: Intent?) {
-        val action: String? = intent?.action
-        if(Intent.ACTION_VIEW == action) {
-            val data: Uri? = intent?.data
-
-            // We verify that we have a valid deep link
-            if (data != null) {
-                // We check the scheme of the deep link to determine which FanMakerSDK instance to use
-                // or if you want to handle the deep link within your own application instead.
-                // Establish a scheme for each FanMakerSDK instance you want to handle deep links for
-                // in your AndroidManifest.xml file.
-                val scheme = data.scheme
-                if (scheme == "turdroidken") {
-                    fanMakerSDK1?.let {
-                        fanMakerSDK1!!.handleUrl(data.toString())
-                        startActivity(fanmakerIntent1)
-                    }
-                } else if(scheme == "turdroidken2") {
-                    fanMakerSDK2?.let {
-                        fanMakerSDK2!!.handleUrl(data.toString())
-                        startActivity(fanmakerIntent2)
-                    }
-                }
-            }
-        }
-    }
     ...
 
-```
+    private fun handleDeepLink(intent: Intent?) {
+        if (intent == null || intent.action != Intent.ACTION_VIEW) return
+        val data: Uri = intent.data ?: return
 
-It should also be noted, that the FanMakerSDK intents used in this example are established as a `lateinit var` and are defined in the `onCreate` method like other examples in this document.
+        // One scheme per FanMakerSDK instance, as declared in AndroidManifest.xml
+        val sdk = when (data.scheme) {
+            "turdroidken" -> fanMakerSDK1
+            "turdroidken2" -> fanMakerSDK2
+            else -> null
+        } ?: return // not a Fanmaker link: handle it yourself
 
-**Important**: The FanMakerSDK verifies that the `host` is either `fanmaker` or `fanmaker.com`. If you are not using a deep link with a custom scheme, like `turdroidken`, then you will need to format the URL yourself assuming you have defined a identifable link for it like:
-```
-https://yourwebsite.com/fanmaker/store/items/1234 // example link the user has clicked on
-```
-
-When passing a deeplink/universal link to the Fanmaker SDK, this simply tells the SDK that when it is opened next to navigate to the desired route. If multiple links are passed without opening the SDK, then only the latest link will be shown to the user.
-
-In your `MainActivity`
-```
-private fun handleDeepLink(intent: Intent?) {
-        val action: String? = intent?.action
-        if(Intent.ACTION_VIEW == action) {
-            val data: Uri? = intent?.data
-
-            // We verify that we have a valid deep link
-            if (data != null) {
-                val scheme = data.scheme
-                val host = data.host
-                val path = data.path
-                if (scheme == "https") {
-                    if (data.host == "yourwebsite.com") {
-                        if (path?.contains("/fanmaker/") == true) {
-                            fanMakerSDK1?.let {
-                                val pathSegments = path?.split("/fanmaker/") ?: emptyList()
-                                val fanmakerPath = if (pathSegments.size > 1) pathSegments[1] else ""
-                                val fanMakerUrl = "https://fanmaker.com/$fanmakerPath"
-                                fanMakerSDK1!!.handleUrl(fanMakerUrl)
-                                startActivity(fanmakerIntent1)
-                            }
-                        }
-                    }
-                }
-            }
+        if (sdk.openUrl(data.toString())) {
+            sdk.present(this)
         }
     }
-
-
+}
 ```
 
+`openUrl` returns `true` when the SDK takes the link and queues it as the next destination, and `false` when it isn't a link the SDK handles, so you can fall through to your own handling. `present()` then opens the UI, or navigates the screen that is already open. If you use the [Fragment](#displaying-fanmaker-ui-as-a-fragment), start its host activity instead of calling `present()`.
+
+`openUrl` accepts:
+
+- any scheme whose host is `fanmaker` or `fanmaker.com`, such as `turdroidken://fanmaker/store`;
+- an `http` or `https` link to your site's host, or to another domain Fanmaker has configured for your site. The SDK learns these hosts from Fanmaker when its screen loads and keeps them across restarts, so only on a fresh install, before the screen has loaded once, it may not recognize them yet and returns `false`.
+
+When you already know a link belongs to the Fanmaker SDK, pass a path instead and skip the hostname: `present(this, "/store")`, or `openPath("/store")` followed by `present(this)` or starting your fragment's host activity. `openPath` returns `false` for an empty path or one that carries a scheme or host.
+
+For example, if links on your own website such as `https://yourwebsite.com/fanmaker/store/items/1234` should open the Fanmaker UI, add this to `handleDeepLink` before the scheme check:
+
+```kotlin
+val path = data.path
+if (data.host == "yourwebsite.com" && path != null && path.startsWith("/fanmaker/")) {
+    fanMakerSDK1?.present(this, path.removePrefix("/fanmaker"))
+    return
+}
+```
+
+A queued destination is opened the next time the UI opens. If several are queued first, only the latest is shown. It is saved on the device, so a notification tap that starts your app doesn't lose it. When the app restarts, a saved destination more than ten minutes old is discarded, so one that was never opened doesn't appear on a later launch.
+
+`canOpenUrl(url)` and `handleUrl(url)` still work. `handleUrl` is `openUrl` without the return value.
+
+#### Opening the SDK from a push notification
+
+A notification tap can start your app in a new process, before your `MainActivity` has called `setInstance`. In code a notification can reach, look the instance up with a Context:
+
+```kotlin
+// In the activity your notification opens, with the destination from your payload
+fun openFanmakerFromPush(destination: String) {
+    val sdk = FanMakerSDKs.getInstance(this, "<DEV_DEFINED_KEY>") ?: return
+    if (destination.startsWith("/")) {
+        sdk.present(this, destination)
+    } else if (sdk.openUrl(destination)) {
+        sdk.present(this)
+    }
+}
+```
+
+`FanMakerSDKs.getInstance(context, key)` returns the instance this process registered or, if there isn't one, rebuilds it from what the SDK saved the last time your app called `setInstance` for that key. It returns `null` if your app hasn't called `setInstance` for the key since updating to this version. The fan's session and identifiers carry over to a rebuilt instance. Callbacks and parameters you set (`onClose`, `onActionTriggered`, `fanMakerParameters`) do not, so on the close action a rebuilt instance simply closes its own screen. When your app later calls `setInstance`, its instance replaces the rebuilt one.
+
+`FanMakerSDKs.getInstance(key)`, without a Context, is unchanged: it returns only what this process registered.
+
+Prefer a path in your push payload. An `https` link is only accepted once the SDK knows your site's hosts (see above).
 
 #### Links out of the webview
-The SDK decides for itself which links leave for the system browser — you don't wire anything up. A link the fan taps on one of our pages that points at a host that isn't first-party (the site's own host, its `allowed_domains`, or any `*.fanmaker.com` host) opens in the browser, so partner and ticketing pages get their own browser chrome and the fan's existing session.
 
-It is deliberately narrow: only a tap that replaces the whole page, and only from one of our pages. Redirects, script-driven navigations, taps inside embedded frames and taps on a provider's own pages stay in the webview, because SSO and payment flows run *through* third-party pages and have to come back. Nothing is ejected before `site_details/sdk` has answered.
+You don't need to wire anything up. When the fan taps a link on a Fanmaker page that leads to a host that isn't Fanmaker's (any `*.fanmaker.com` host, your site's host, or another domain Fanmaker has configured for your site), it opens in the system browser, so partner and ticketing pages get the browser's controls and the fan's existing session there.
+
+Only a tap that replaces the whole page, on a Fanmaker page, does this. Redirects, script-driven navigations, taps inside embedded frames and taps on a provider's own pages stay in the webview, because sign-in and payment flows pass through third-party pages and have to come back.
 
 #### Sign-ins that can't run in a webview
-Some providers' sign-ins don't work inside an embedded webview: Ticketmaster's passkeys are bound to ticketmaster.com, and some identity providers refuse embedded webviews outright. For those, FanMaker's page asks the SDK to run the sign-in in Chrome's **Auth Tab**, in a private session, so it neither uses nor changes the fan's own browser sign-ins. Passkeys work there, and the Auth Tab hands the link the sign-in ends on straight back to the SDK, which loads it into the webview. You don't wire anything up.
 
-If the fan's browser has no Auth Tab, the SDK opens a Custom Tab instead, and the sign-in comes back through your app's deep link for the site's scheme (`<scheme>://fanmaker/...`), which your app already hands to `openUrl` (see Deep Linking below).
+Some sign-ins don't work inside an embedded webview: Ticketmaster's passkeys only work on ticketmaster.com, and some identity providers refuse embedded webviews. For those, the Fanmaker page asks the SDK to run the sign-in in Chrome's **Auth Tab**, as a private session, so it neither uses nor changes the fan's own browser sign-ins. Passkeys work there. When the sign-in finishes, the Auth Tab hands the result back to the SDK, which loads it into the webview. You don't need to wire anything up.
 
-The SDK depends on `androidx.browser` for this, which requires your app to compile against API 36 or later.
+If the fan's browser doesn't support Auth Tab, the SDK opens a Custom Tab instead, and the sign-in comes back to your app as a `<scheme>://fanmaker/...` deep link, where `<scheme>` is the scheme Fanmaker has configured for your site. The `handleDeepLink` example above (`openUrl`, then `present()`) handles it.
+
+This is why the SDK requires `compileSdk 36`: `androidx.browser`, which provides the Auth Tab, requires it.
 
 ### Passing Custom Identifiers
 
-FanMaker UI usually requires users to input their FanMaker's Credentials. However, you can make use of up to four different custom identifiers to allow a given user to automatically login when they first open FanMaker UI.
+The Fanmaker UI usually asks users for their Fanmaker credentials. However, you can make use of up to four different custom identifiers to allow a given user to automatically log in when they first open the Fanmaker UI.
 
-```
-import com.fanmaker.sdk.FanMakerSDKWebView
-
+```kotlin
 class MyActivity : AppCompatActivity() {
     var fanMakerSDK: FanMakerSDK? = null
     . . .
 
     fun openFanMakerSDKWebView(view: View) {
-        fanMakerSDK?.memberID = <memberID>
-        fanMakerSDK?.studentID = <studentID>
-        fanMakerSDK?.ticketmasterID = <ticketmasterID>
-        fanMakerSDK?.yinzid = <yinzid>
+        val sdk = fanMakerSDK ?: return
+        sdk.memberID = "<memberID>"
+        sdk.studentID = "<studentID>"
+        sdk.ticketmasterID = "<ticketmasterID>"
+        sdk.yinzid = "<yinzid>"
 
-        val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        startActivity(intent)
+        sdk.present(this)
     }
 }
 ```
 
-FanMaker additionally allows you to pass arbitrary identifiers as part of a HashMap. The HashMap already exists with the key `FanMaker.arbitraryIdentifiers`. Like in the examples above you can pass an arbitrary identifier with a unique key like so:
-```
-import com.fanmaker.sdk.FanMakerSDKWebView
-
+Fanmaker additionally allows you to pass arbitrary identifiers in the `arbitraryIdentifiers` map, with a unique key and a `String` value:
+```kotlin
 class MyActivity : AppCompatActivity() {
     var fanMakerSDK: FanMakerSDK? = null
     . . .
 
     fun openFanMakerSDKWebView(view: View) {
+        val sdk = fanMakerSDK ?: return
         // below is a static member id example like above
-        fanMakerSDK?.memberID = <memberID>
+        sdk.memberID = "<memberID>"
 
         // This would pass an arbitrary identifier of "FanMaker_NFL_OIDC_Example" with the key "nfl_oidc"
-        fanMakerSDK?.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
+        sdk.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
 
-        val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        startActivity(intent)
+        sdk.present(this)
     }
 }
-
 ```
-Note: you may only have 1 identifier per key. If you require more, please contact FanMaker.
+Note: you may only have 1 identifier per key. If you require more, please contact Fanmaker.
 
-These identifiers must be set **before** displaying `FanMakerSDKWebView`.
+These identifiers must be set **before** displaying the Fanmaker UI. The SDK saves them on the device and restores them when your app restarts, so you only need to set them again when they change. When a fan signs out, clear them with `logout()` (see [Signing out](#signing-out)).
 
 ### Passing Custom Parameters
 
 Similar to passing custom identifiers, you can also pass custom parameters to the SDK. Here is how to do so and some of the options.
-```
-import com.fanmaker.sdk.FanMakerSDKWebView
-
+```kotlin
 class MyActivity : AppCompatActivity() {
     var fanMakerSDK: FanMakerSDK? = null
     . . .
 
     fun openFanMakerSDKWebView(view: View) {
+        val sdk = fanMakerSDK ?: return
         // below is a static member id example like above
-        fanMakerSDK?.memberID = <memberID>
+        sdk.memberID = "<memberID>"
 
-        // This would tell the SDK that we want to hide the FanMaker Menu
-        fanMakerSDK?.fanMakerParameters["hide_menu"] = true
+        // This would tell the SDK that we want to hide the Fanmaker Menu
+        sdk.fanMakerParameters["hide_menu"] = true
 
-        // These tell the SDK what the viewport dimensions are so FanMaker can respond accordingly
-        fanMakerSDK?.fanMakerParameters["viewport_width"] = 512
-        fanMakerSDK?.fanMakerParameters["viewport_height"] = 1024
+        // These tell the SDK what the viewport dimensions are so Fanmaker can respond accordingly
+        sdk.fanMakerParameters["viewport_width"] = 512
+        sdk.fanMakerParameters["viewport_height"] = 1024
 
-        val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        startActivity(intent)
+        sdk.present(this)
     }
 }
-
 ```
 Note: you may only have 1 parameter per key.
 
-These parameters must be set **before** displaying `FanMakerSDKWebView`.
+These parameters must be set **before** displaying the Fanmaker UI. Unlike identifiers, parameters are not saved on the device: set them again each time your app starts.
 
-**Note**: All of these identifiers, along with the FanMaker's User ID, are automatically defined when a user successfully logins and become accessible via the following public variables:
-```
-...
+**Note**: All of these identifiers, along with the Fanmaker User ID, are automatically defined when a user successfully logs in and become accessible via the following public variables:
+```kotlin
 var fanMakerSDK: FanMakerSDK? = null
 ...
 
@@ -589,33 +591,33 @@ fanMakerSDK?.arbitraryIdentifiers
 
 ### Passing a Push Notification Token
 
-In addition to user identifiers, the FanMaker SDK allows you to provide a Push Notification Token. This token enables Fanmaker to send push notifications directly to users of your application.
+In addition to user identifiers, the Fanmaker SDK allows you to provide a Push Notification Token. This token enables Fanmaker to send push notifications directly to users of your application.
 
-Once you've obtained a valid push notification token from Firebase Cloud Messaging (FCM), pass it to the FanMaker SDK before presenting the FanMaker UI. The SDK will associate the token with the current user session.
+Once you've obtained a valid push notification token from Firebase Cloud Messaging (FCM), pass it to the Fanmaker SDK before presenting the Fanmaker UI. The SDK will associate the token with the current user session.
 
-```
-import com.fanmaker.sdk.FanMakerSDKWebView
-
+```kotlin
 class MyActivity : AppCompatActivity() {
     var fanMakerSDK: FanMakerSDK? = null
     . . .
 
     fun openFanMakerSDKWebView(view: View) {
-        fanMakerSDK?.pushNotificationToken = <pushToken>
+        val sdk = fanMakerSDK ?: return
+        sdk.pushNotificationToken = "<pushToken>"
 
-        val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        startActivity(intent)
+        sdk.present(this)
     }
 }
 ```
 
 **Note**: The push notification token is automatically defined when set and becomes accessible via the following public variable:
-```
+```kotlin
 fanMakerSDK?.pushNotificationToken
 ```
 
+The token is saved on the device like the identifiers, and `logout()` clears it. Set it again after the next fan signs in.
+
 ### Privacy Permissions (Optional)
-It is possible to pass optional privacy permission details to the FanMaker SDK where we will record the settings for the user in our system. To pass this information to FanMaker, please use the following protocols. Note: it is the same way you would pass Custom Identifiers above, but with specific keys.
+It is possible to pass optional privacy permission details to the Fanmaker SDK where we will record the settings for the user in our system. To pass this information to Fanmaker, please use the following protocols. Note: it is the same way you would pass Custom Identifiers above, but with specific keys.
 
 The specific privacy opt in/out keys are as follows:
 1. `privacy_advertising`
@@ -626,36 +628,65 @@ The specific privacy opt in/out keys are as follows:
 *NOTE: all privacy permissions are optional. Do not pass privacy settings that you do not have user data for*
 
 
-```
+```kotlin
 class MyActivity : AppCompatActivity() {
     var fanMakerSDK: FanMakerSDK? = null
     ...
 
     fun openFanMakerSDKWebView(view: View) {
+        val sdk = fanMakerSDK ?: return
         ...
         // This would pass an arbitrary identifier of "FanMaker_NFL_OIDC_Example" with the key "nfl_oidc"
-        fanMakerSDK?.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
+        sdk.arbitraryIdentifiers["nfl_oidc"] = "FanMaker_NFL_OIDC_Example"
 
         // Privacy Settings
-        fanMakerSDK?.arbitraryIdentifiers["privacy_advertising"] = false
-        fanMakerSDK?.arbitraryIdentifiers["privacy_analytics"] = true
-        fanMakerSDK?.arbitraryIdentifiers["privacy_functional"] = true
-        fanMakerSDK?.arbitraryIdentifiers["privacy_all"] = false
+        sdk.arbitraryIdentifiers["privacy_advertising"] = "false"
+        sdk.arbitraryIdentifiers["privacy_analytics"] = "true"
+        sdk.arbitraryIdentifiers["privacy_functional"] = "true"
+        sdk.arbitraryIdentifiers["privacy_all"] = "false"
 
         ...
-        val intent = Intent(this, FanMakerSDKWebView::class.java).apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }
-        startActivity(intent)
+        sdk.present(this)
     }
 }
 ```
 
-*`Note`: a value of `true` indicates that the user has opted in to a privacy permission, `false` indicates that a user has opted out.*
+*`Note`: a value of `"true"` indicates that the user has opted in to a privacy permission, `"false"` indicates that a user has opted out. `arbitraryIdentifiers` holds `String` values, so pass them as strings.*
+
+### Signing out
+
+When a fan signs out of your app, call `logout()`:
+
+```kotlin
+fanMakerSDK?.logout()
+```
+
+**When to call it:** every time a fan signs out of your app, including when one fan signs out so another can sign in on the same device.
+
+**When you don't need to:** when a fan logs out *inside* the Fanmaker UI, the SDK ends the Fanmaker session itself.
+
+**Switching fans:** call `logout()` when the first fan signs out, and set the next fan's identifiers only once they have signed in to your app. Don't rely on new identifiers replacing the old fan on their own: if the new fan has no Fanmaker account yet, the previous fan's session would still be there.
+
+`logout()` clears every identifier, including the push notification token and the arbitrary identifiers, and ends the Fanmaker session, both in memory and on the device. Identifiers and the session survive app restarts, so without it the next person to open the Fanmaker UI on that device is signed in as the previous fan.
+
+`logout()` also clears the cookies and stored website data of the SDK's webview, so neither Fanmaker's pages nor a sign-in provider such as Ticketmaster can sign the next person in as the previous fan. The SDK's webview keeps that data in a WebView profile of its own, so `logout()` leaves your app's own WebViews alone. On a device whose Android System WebView is too old for profiles, every WebView in an app shares one store, and `logout()` clears all of it. To act once everything is cleared, pass a completion, which runs on the main thread:
+
+```kotlin
+fanMakerSDK?.logout {
+    // the Fanmaker session and all web data are gone
+}
+```
+
+Two narrower calls exist:
+
+- `clearSessionToken()` ends the Fanmaker session but keeps the identifiers, so the next time the UI opens, the SDK can sign the same fan back in with them.
+- `clearIdentifiers()` clears the identifiers but leaves the session in place. It is not a sign-out.
 
 ### Location Tracking
 
-FanMaker UI uses location tracking services when they are available. However, location tracking can be enabled/disabled by calling the following static functions:
+The Fanmaker UI uses location tracking services when they are available. Location tracking for Auto Checkin is off until you enable it, either with `locationEnabled = true` (see [Auto Checkin](#auto-checkin)) or with these functions:
 
-```
+```kotlin
 var fanMakerSDK: FanMakerSDK? = null
 ...
 
@@ -676,8 +707,8 @@ In order for Location Tracking to work, you need to add the following permission
 These foreground location permissions are sufficient for Auto Checkin — the GPS ping fires when the app resumes to the foreground (`onResume`), so background location access is not required for this feature. `ACCESS_BACKGROUND_LOCATION` is only needed if you are using [Beacons Tracking](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#beacons-tracking-permissions).
 
 ### Auto Checkin
-The FanMakerSDK can auto checkin users to events without them opening the FanMakerSDK itself. Once the user has successfully logged into the FanMakerSDK and granted location permissions, on subsequent opens of your application, the FanMakerSDK will automatically attempt to automatically checkin the user to events within range. Be sure to enable location tracking for the feature to be enabled on every instance of the FanMakerSDK you would like to use. You must also add a lifecycle observer to each SDK instance you'd like to have Auto Checkin and App open/resume enabled for using the `lifecycle.addObserver` method:
-```
+The Fanmaker SDK can check users in to events automatically, without them opening the Fanmaker UI. Once the user has logged in through the Fanmaker UI and granted location permissions, each time your app opens or resumes the SDK attempts to check the user in to events within range. Enable location tracking on every `FanMakerSDK` instance you want to use this with, and add each of those instances as a lifecycle observer with `lifecycle.addObserver`, which also enables App open/resume rewards:
+```kotlin
 class MainActivity : AppCompatActivity() {
     ...
     var fanMakerSDK1: FanMakerSDK? = null
@@ -705,9 +736,11 @@ class MainActivity : AppCompatActivity() {
     }
 ```
 
+The order doesn't matter: if you enable location tracking after the app has resumed, the SDK sends the location ping it missed.
+
 ### Beacons Tracking
 
-FanMaker SDK allows beacon tracking by using the `FanMakerSDKBeaconManager` class. This class can be instantiated and used inside any `Activity` class. The simplest way to use it is the following:
+The Fanmaker SDK allows beacon tracking by using the `FanMakerSDKBeaconManager` class. This class can be instantiated and used inside any `Activity` class. The simplest way to use it is the following:
 
 ```
 class MainActivity : AppCompatActivity() {
@@ -754,10 +787,12 @@ beaconManager1.fetchBeaconRegions()
 
 where `MyCustomBeaconEventHandler` is defined as:
 
-```
+```kotlin
 import com.fanmaker.sdk.FanMakerSDKBeaconEventHandler
+import com.fanmaker.sdk.FanMakerSDKBeaconManager
+import com.fanmaker.sdk.FanMakerSDKBeaconRegion
 
-class BeaconEventHandler : FanMakerSDKBeaconEventHandler {
+class MyCustomBeaconEventHandler : FanMakerSDKBeaconEventHandler {
     // This function gets called when the list of beacon regions is successfully retrieved from the server.
     // Maybe you want to customize which regions get scanned or add debug messages to better monitor the workflow.
     override fun onBeaconRegionsReceived(manager: FanMakerSDKBeaconManager, regions: Array<FanMakerSDKBeaconRegion>) {
@@ -835,7 +870,7 @@ Add these to your `AndroidManifest.xml`:
 </application>
 ```
 
-If one is missing, `enableForegroundServiceScanning` returns `false`, logs the line to add, and beacons scan the default way. Once it is on:
+If one is missing, `enableForegroundServiceScanning` returns `false`, logs the line to add, and beacons scan the default way. It also returns `false` if beacons are already scanning, which is why it has to come before the first `fetchBeaconRegions()`. Once it is on:
 
 - The SDK scans for 1.5 seconds about twice a minute, in the foreground and the background.
 - Scanning waits until the fan has granted location and, on Android 12+, Nearby devices. Starting a location foreground service without them crashes the app on Android 14+. Call `fetchBeaconRegions()` again once they are granted.
@@ -844,7 +879,7 @@ Google Play asks apps that run a location foreground service to declare it in Pl
 
 ### [Reward Usage of Host App](https://blog.fanmaker.com/sdk-2-0-background-check-ins-app-rewards-and-support-for-multiple-programs/)
 
-By setting up a lifecycle observer on each instance of the FanMakerSDK, you can capture this highly useful data or award points for each day the fan uses the your host application.
+By setting up a lifecycle observer on each `FanMakerSDK` instance, you can capture this highly useful data or award points for each day the fan uses your host application.
 
 ```
 class MainActivity : AppCompatActivity() {
@@ -868,163 +903,17 @@ class MainActivity : AppCompatActivity() {
     }
 ```
 
-## Upgrading from 4.0.x
-
-**This is a drop-in update.** Nothing was removed or changed shape: the public API
-of the AAR is purely additive against 4.0.3, verified by diffing the compiled
-class surface. Existing integrations compile and link unchanged, including code
-already compiled against 4.0.3 such as a vendored copy inside a third-party
-plugin. No code change is required.
-
-There are, however, four behaviour changes worth knowing about, because they
-take effect on update whether or not you touch your code.
-
-### Identifiers now survive process death — call `logout()` on sign-out
-
-Identifiers used to live only in memory, so they were lost whenever the app
-process was killed and had to be re-supplied on every cold start. They are now
-persisted and rehydrated, which is what most integrations expected all along.
-
-The consequence is that **process death is no longer an implicit reset.** Add an
-explicit one to your sign-out path:
-
-```
-fanMakerSDK?.logout()
-```
-
-`logout()` forgets the fan completely: every identifier, the FanMaker session
-token, and the auto-login user token.
-
-**Use `logout()`, not `clearIdentifiers()`.** Clearing identifiers is not a
-sign-out. The session token is what actually authenticates the fan — it is sent
-as `X-FanMaker-SessionToken` and `Authorization` — so clearing only the
-identifiers leaves the next person to open the webview logged in as the previous
-fan, whatever the identifiers say. Nothing in the SDK cleared that token before
-this release, so ending a session was not previously possible at all;
-`clearIdentifiers()` remains available for the narrower job its name describes.
-
-A value you pass to the constructor still wins over a persisted one, so only
-empty fields are ever rehydrated.
-
-Note that identifiers are deliberately restored whether or not a session token
-is present. They are the *input* to auto-login — the SDK posts them to
-`site/auth/auto_login` when composing the webview URL — so a returning fan whose
-token has gone is exactly the case that needs them. `clearSessionToken()` is
-available if you want to force a re-authentication while keeping the identifiers
-that make it possible.
-
-### Deep links are claimed more broadly
-
-`canOpenUrl` used to return true only for a literal `fanmaker` hostname. It now
-also claims a first-party web link — an `http(s)` URL whose host is your NUX
-host or one of the site's allowed domains. The literal `fanmaker` form keeps
-working.
-
-If your app asks `canOpenUrl` before deciding where a link goes, a first-party
-link that previously fell through to your own browser handling will now open
-inside the FanMaker webview. That is the intended fix, but it is a routing
-change on update.
-
-`handleUrl` still returns `Unit` and ignores whether the URL was claimed. Use
-the new `openUrl` when you want that answer:
-
-```
-if (!fanMakerSDK!!.openUrl(url)) {
-    // not ours - handle it yourself
-}
-```
-
-And `openPath` queues a destination with no hostname convention at all, which is
-usually what you want for a push notification's `click_action`:
-
-```
-fanMakerSDK?.openPath("/store")
-```
-
-A queued destination is persisted so a push tap that starts a cold process does
-not lose it, and is discarded after ten minutes so one that was never opened
-cannot resurface on an unrelated launch.
-
-### Auto Checkin recovers a ping it used to drop
-
-If you enable location tracking *after* registering the lifecycle observer, the
-first ping used to be lost for the whole session, because `locationEnabled`
-defaults to false and nothing re-fired it. Enabling tracking while the app is
-foregrounded now sends that ping.
-
-Expect one `events/auto_checkin` request on cold start where previously there
-was none. Call order no longer matters, so the ordering advice elsewhere in this
-README is now a preference rather than a requirement.
-
-### Composed deep link URLs lost a stray slash
-
-`formatUrl` produced a doubled slash — `https://host//store` — for every deep
-link, including the legacy shape. It now produces `https://host/store`. Only
-relevant if something on your side matched on the old form.
-
-### One webview per key, and cold-start launches
-
-Two changes to how `FanMakerSDKWebView` starts, both of which apply without any
-code change on your side.
-
-**A second launch for a key that already has a webview open no longer stacks a
-duplicate.** The destination from the second launch is handed to the webview
-already on screen and the duplicate closes itself, so a fan does not end up
-backing out of the same screen twice. Deduplication is per key, so separate
-instances can each have their own webview open. If you want to check before
-launching:
-
-```
-if (!FanMakerSDKWebView.isRunning("<DEV_DEFINED_KEY>")) {
-    startActivity(fanmakerIntent)
-}
-```
-
-`FanMakerSDKWebView.runningKeys` lists the keys with a webview currently on
-screen.
-
-**The webview can now start in a process that has not run your `setInstance`
-calls yet.** This is what a push notification does: tapping it can start the
-activity cold, before your `MainActivity` has initialized anything. Previously
-that failed with `Failed to get instance of FanMakerSDK` and the activity
-closed immediately. The api key for each dev-defined key is now remembered, so
-the SDK rebuilds the instance itself. The session token and identifiers already
-persist, so a rebuilt instance works straight away.
-
-You still have to call `setInstance` at least once, on some earlier run, for a
-key to be rebuildable — the SDK cannot invent an api key it has never been
-given.
-
-A rebuilt instance carries no host-supplied callbacks or parameters: `onClose`,
-`onActionTriggered` and `fanMakerParameters` are whatever a fresh instance has.
-Closing therefore falls back to the SDK closing its own activity, which is the
-documented default when `onClose` is null. If your integration depends on those,
-set them as usual when your app does initialize; the rebuilt instance is
-replaced by yours the moment you call `setInstance`.
-
-`FanMakerSDKs.getInstance(key)` is unchanged and still resolves only what this
-process registered. The rebuilding behaviour is on a new overload that takes a
-Context, `FanMakerSDKs.getInstance(context, key)`, which is what the SDK's own
-activity and fragment now use. Prefer it anywhere reachable from a notification.
-
-### Minification
-
-The SDK now ships consumer ProGuard rules. If you enabled R8 or ProGuard, beacon
-ranging previously crashed your process; that is fixed, and the rules are applied
-automatically. If you added the AltBeacon `RssiFilter` keep rule to your own
-`proguard-rules.pro` as a workaround, it is harmless to leave in place.
-
 ## Upgrading to 2.0 from 1.x
 
 ### Step 1:
-Previously the FanMaker SDK was initialized like this:
+Previously the Fanmaker SDK was initialized like this:
 ```
 FanMakerSDK.initialize("<SDK_KEY>")
 ```
 
-Now, you need to leverage the `FanMakerSDKs` singleton class to initialize and store your FanMakerSDK instances:
+Now, you need to leverage the `FanMakerSDKs` singleton class to initialize and store your `FanMakerSDK` instances:
 ```
-# Import the new FanMakerSDKs singleton class into your MainActivity so that it can be leveraged throughout the application
+// Import the new FanMakerSDKs singleton class into your MainActivity so that it can be leveraged throughout the application
 import com.fanmaker.sdk.FanMakerSDKs
 
 class MainActivity : AppCompatActivity() {
@@ -1038,7 +927,7 @@ class MainActivity : AppCompatActivity() {
 The `setInstance` function of the `FanMakerSDKs` singleton class takes 3 arguments:
 1. the Context of the application
 2. the `DEV_DEFINED_KEY` that will be set and used to retreive this instance
-3. the `SDK_KEY` provided to you by the FanMaker team as you were using previously
+3. the `SDK_KEY` provided to you by the Fanmaker team as you were using previously
 
 
 ### Step 2:
@@ -1063,8 +952,8 @@ class MainActivity : AppCompatActivity() {
 
 In the example above, `fanMakerIntent1` is established as a `lateinit var` for the ease of use across the MainActivity, which can be helpful for implementing [Deep Linking](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#deep-linking--universal-links), however, you may also simply setup the intent at the time you are planning on using it.
 
-### Step 3.
-If you are passing any values to the FanMakerSDK using one of our methods like setMemberID, setTicketmasterID, or setFanMakerIdentifiers, then be sure to specify which SDK instance you are passing the values to:
+### Step 3:
+If you are passing any values to the `FanMakerSDK` using one of our methods like setMemberID, setTicketmasterID, or setFanMakerIdentifiers, then be sure to specify which SDK instance you are passing the values to:
 
 ```
 class MainActivity : AppCompatActivity() {
@@ -1086,7 +975,7 @@ class MainActivity : AppCompatActivity() {
 
     fun setupIdentifiers() {
         fanMakerSDK1?.memberID = "memberID"
-        fanMakerSDK2?.ticketmasterID = ticketmasterID
+        fanMakerSDK2?.ticketmasterID = "ticketmasterID"
     }
 
     ...
@@ -1104,9 +993,9 @@ class MainActivity : AppCompatActivity() {
 In the example above, `fanMakerSDK1` and `fanMakerSDK2` are established as optional variables and then defined in the onCreate function using the `FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")` where, `DEV_DEFINED_KEY` is the second argument from [step 1](https://github.com/FanMaker/Turdroidken?tab=readme-ov-file#step-1).
 
 ### Step 4:
-If you are using bluetooth beacons through the FanMaker SDK, you will need to update your implementation.
+If you are using bluetooth beacons through the Fanmaker SDK, you will need to update your implementation.
 
-Where you are initializing the FanMakerSDKBeaconsManager, you will now need to pass the instance of the SDK you are using:
+Where you are initializing the `FanMakerSDKBeaconManager`, you will now need to pass the instance of the SDK you are using:
 
 ```
 class MainActivity : AppCompatActivity() {
@@ -1145,12 +1034,6 @@ class MainActivity : AppCompatActivity() {
             beaconManager2.fetchBeaconRegions()
         }
     }
-
-    beaconManager1 = FanMakerSDKBeaconManager(fanMakerSDK1!!, application)
-    beaconManager1.fetchBeaconRegions()
-
-    beaconManager2 = FanMakerSDKBeaconManager(fanMakerSDK2!!, application)
-    beaconManager2.fetchBeaconRegions()
 ```
 
 In the example above, `beaconManager1` and `beaconManager2` are established as `lateinit var` and then are defined in the `onCreate` method of your `MainActivity` using the `FanMakerSDKBeaconManager` class, which now requires a `FanMakerSDK` as the first argument.
