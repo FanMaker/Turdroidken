@@ -29,6 +29,10 @@ object LegacyApiCompatCheck {
         FanMakerSDKs.setInstance(activity, "<DEV_DEFINED_KEY>", "<SDK_KEY>")
         val fanMakerSDK: FanMakerSDK? = FanMakerSDKs.getInstance("<DEV_DEFINED_KEY>")
 
+        // The public constructor, with the argument names 4.0.3 published.
+        // Renaming a constructor parameter breaks Kotlin callers that name it.
+        val direct = FanMakerSDK(locationEnabled = true, deepLinkUrl = "")
+
         // README: launching the webview.
         val fanmakerIntent = Intent(activity, FanMakerSDKWebView::class.java)
             .apply { putExtra("fanMakerKey", "<DEV_DEFINED_KEY>") }

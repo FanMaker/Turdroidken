@@ -88,10 +88,10 @@ class FanMakerSDK(
     var loadingAnimationDrawable: Int? = null,
     var requestTimeoutMs: Int = 10000,
     var requestMaxRetries: Int = com.android.volley.DefaultRetryPolicy.DEFAULT_MAX_RETRIES,
-    private var _locationEnabled: Boolean = false,
+    locationEnabled: Boolean = false,
     var firstLaunch: Boolean = true,
     var baseUrl: String = "",
-    private var _deepLinkUrl: String = "",
+    deepLinkUrl: String = "",
 ) : DefaultLifecycleObserver {
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
@@ -102,6 +102,11 @@ class FanMakerSDK(
     // locationEnabled was still false.
     private var isForegrounded = false
     private var locationPingAttempted = false
+
+    // Backing fields for the properties below. The constructor keeps the
+    // argument names 4.0.3 published, since Kotlin callers name them.
+    private var _locationEnabled: Boolean = locationEnabled
+    private var _deepLinkUrl: String = deepLinkUrl
 
     // Property observers for identifiers
     var userID: String
