@@ -72,7 +72,7 @@ class ObservableHashMap<K, V>(
 }
 
 class FanMakerSDK(
-    var version: String = "4.0.3",
+    var version: String = "4.1.0",
     var apiKey: String = "",
     private var _userID: String = "",
     private var _memberID: String = "",
@@ -326,9 +326,14 @@ class FanMakerSDK(
     }
 
     /**
-     * Forget the fan completely: every identifier, the FanMaker session token,
-     * and the auto-login user token. This is what a host should call when a
-     * fan signs out.
+     * Forget the fan completely: every identifier, the Fanmaker session token,
+     * the auto-login user token, and the cookies and stored site data of the
+     * SDK's webview. This is what a host should call when a fan signs out.
+     * [completion] runs on the main thread once it is all gone.
+     *
+     * The SDK's webview has a WebView profile of its own, so the host app's own
+     * WebViews are untouched. On a WebView too old for profiles there is only
+     * the app-wide store, and all of it is cleared.
      *
      * Clearing identifiers alone is not a sign-out. The session token is what
      * actually authenticates the fan - webViewHeaders sends it as
@@ -338,10 +343,23 @@ class FanMakerSDK(
      * ever cleared that token, so before this there was no way for a host to
      * end a session at all.
      */
-    fun logout() {
+    @JvmOverloads
+    fun logout(completion: (() -> Unit)? = null) {
         clearIdentifiers()
         clearSessionToken()
-        Log.i("FanMakerSDK", "logged out: identifiers and session token cleared")
+        // Fanmaker's pages and sign-in providers keep their own state in the
+        // webview, which would otherwise open the next fan's session as this one.
+        // Profiles and both stores want the main thread.
+        android.os.Handler(android.os.Looper.getMainLooper()).post {
+            val profile = ownWebProfile()
+            (profile?.webStorage ?: android.webkit.WebStorage.getInstance()).deleteAllData()
+            val cookies = profile?.cookieManager ?: android.webkit.CookieManager.getInstance()
+            cookies.removeAllCookies {
+                cookies.flush()
+                Log.i("FanMakerSDK", "logged out: identifiers, session token and web data cleared")
+                completion?.invoke()
+            }
+        }
     }
 
     /**
@@ -940,6 +958,28 @@ class FanMakerSDK(
     }
 
     companion object {
+        /** The WebView profile the SDK's webview keeps its cookies and storage in. */
+        internal const val WEB_PROFILE = "fanmaker"
+
+        /**
+         * The SDK webview's own profile, or null on a WebView too old for
+         * profiles, where every WebView in the app shares one store. Main thread.
+         */
+        internal fun ownWebProfile(): androidx.webkit.Profile? =
+            if (androidx.webkit.WebViewFeature.isFeatureSupported(androidx.webkit.WebViewFeature.MULTI_PROFILE)) {
+                androidx.webkit.ProfileStore.getInstance().getOrCreateProfile(WEB_PROFILE)
+            } else {
+                null
+            }
+
+        /**
+         * Gives [webView] the SDK's own cookies and storage, so logout() can clear
+         * them without the host app's. Call before anything else touches it.
+         */
+        internal fun useOwnWebProfile(webView: android.webkit.WebView) {
+            if (ownWebProfile() != null) androidx.webkit.WebViewCompat.setProfile(webView, WEB_PROFILE)
+        }
+
         // SharedPreferences keys for persisted identifiers. The prefs file is
         // already namespaced per instance by api key, so these need no prefix
         // beyond staying clear of "token".

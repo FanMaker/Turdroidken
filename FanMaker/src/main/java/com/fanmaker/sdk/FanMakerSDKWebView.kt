@@ -260,6 +260,7 @@ class FanMakerSDKWebView : AppCompatActivity() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = findViewById<WebView>(R.id.fanmaker_sdk_webview)
+        FanMakerSDK.useOwnWebProfile(webView)
 
         // Enable WebView debugging for Chrome DevTools
         // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {

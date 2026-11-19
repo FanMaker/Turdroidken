@@ -1,7 +1,7 @@
-### Unreleased
+### 4.1.0 - Unreleased
 #### Added
 - `present(context, path)`, `isPresenting` and `dismiss()`. The SDK starts and closes its own screen, so a host no longer builds the intent or needs to know the `fanMakerKey` extra.
-- `logout()`, `clearSessionToken()` and `clearIdentifiers()`. There was previously no way to end a session; process death was the only reset.
+- `logout(completion)`, `clearSessionToken()` and `clearIdentifiers()`. There was previously no way to end a session; process death was the only reset. `logout()` also clears the SDK webview's cookies and stored site data, so Fanmaker's pages and sign-in providers can't open the next person's session as the previous fan. The SDK's webview keeps that data in a WebView profile of its own (`androidx.webkit` multi-profile), so the host app's own WebViews are untouched; on a WebView too old for profiles, all of the app's WebView data is cleared. A fan's existing web session lived in the shared profile, so a fan may need to sign in once after updating.
 - `openUrl(url)`, which reports whether the SDK took a link, and `openPath(path)` for a bare path. `handleUrl` still returns `Unit`, so hosts compiled against 4.0.x keep linking.
 - `getInstance(context, key)`, which rebuilds an instance from persisted state, so a cold-start push tap works before the host has initialized the SDK.
 - `enableForegroundServiceScanning()` on `FanMakerSDKBeaconManager` keeps beacons scanning in the background, behind AltBeacon's foreground service, with a 1.5 s scan twice a minute. The SDK builds the notification Android requires, or the host passes its own. A host no longer has to configure AltBeacon itself. A missing manifest entry is logged instead of crashing, and scanning waits for the location and Nearby devices grants, since starting the service without them crashes on Android 14+.
