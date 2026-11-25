@@ -232,10 +232,6 @@ class FanMakerSDKWebViewFragment : Fragment() {
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                // context, not requireContext(): a callback after the fragment
-                // detached threw IllegalStateException.
-                val ctx = context ?: return super.shouldOverrideUrlLoading(view, request)
-                if (request != null && fanMakerSDK?.openTappedExternalLink(ctx, view?.url, request) == true) return true
                 return super.shouldOverrideUrlLoading(view, request)
             }
         }
@@ -250,9 +246,20 @@ class FanMakerSDKWebViewFragment : Fragment() {
 
         // if(!isPermissionGranted()) { askPermissions() }
 
+        // New-window requests (target="_blank", window.open) come to
+        // onCreateWindow, which sends a tap off first-party hosts to the
+        // browser and loads anything else here, as 4.0 did.
+        webView.settings.setSupportMultipleWindows(true)
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 request?.grant(request?.resources)
+            }
+
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                // context, not requireContext(): this can arrive after the fragment detached.
+                val ctx = context ?: return false
+                val sdk = fanMakerSDK ?: return false
+                return view != null && sdk.routeNewWindow(ctx, view, isUserGesture, resultMsg)
             }
 
             private fun openFileChooser(uploadMsg: ValueCallback<Uri>) {

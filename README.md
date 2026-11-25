@@ -28,7 +28,7 @@ Every call this README documented for 4.0.3 still works, including code already 
 ### Works better with no change from you
 
 - Sign-ins that can't run in a webview, such as Ticketmaster passkeys, run in a private Chrome Auth Tab and come back to the Fanmaker UI. See [Sign-ins that can't run in a webview](#sign-ins-that-cant-run-in-a-webview).
-- A link the fan taps on a Fanmaker page that leads to another site opens in the system browser. See [Links out of the webview](#links-out-of-the-webview).
+- A link a Fanmaker page opens in a new window that leads to another site opens in the system browser. Same-window links stay in the webview, as before. See [Links out of the webview](#links-out-of-the-webview).
 - Opening the UI while it is already on screen reuses that screen instead of stacking a second copy.
 - A notification tap that starts your app cold can open the Fanmaker UI, as long as your app has called `setInstance` for that key at least once since updating to this version.
 - `canOpenUrl` and `handleUrl` also accept `https` links to your site's host, not only the `fanmaker` host form. If your app checks `canOpenUrl` before routing a link, those links now go to the SDK.
@@ -493,9 +493,9 @@ Prefer a path in your push payload. An `https` link is only accepted once the SD
 
 #### Links out of the webview
 
-You don't need to wire anything up. When the fan taps a link on a Fanmaker page that leads to a host that isn't Fanmaker's (any `*.fanmaker.com` host, your site's host, or another domain Fanmaker has configured for your site), it opens in the system browser, so partner and ticketing pages get the browser's controls and the fan's existing session there.
+You don't need to wire anything up. When the fan taps a link that a Fanmaker page opens in a new window (`target="_blank"` or `window.open`) and it leads to a host that isn't Fanmaker's (any `*.fanmaker.com` host, your site's host, or another domain Fanmaker has configured for your site), it opens in the system browser.
 
-Only a tap that replaces the whole page, on a Fanmaker page, does this. Redirects, script-driven navigations, taps inside embedded frames and taps on a provider's own pages stay in the webview, because sign-in and payment flows pass through third-party pages and have to come back.
+A link that opens in the same window stays in the webview, as before 4.1.0, so store checkouts and partner pages Fanmaker opens in place keep the fan's session. Any other new-window request (a first-party link, or one the fan didn't tap) loads in the webview, as before. Redirects and taps on a provider's own pages stay in the webview, because sign-in and payment flows pass through third-party pages and have to come back.
 
 #### Sign-ins that can't run in a webview
 
@@ -671,7 +671,7 @@ fanMakerSDK?.logout()
 
 `logout()` clears every identifier, including the push notification token and the arbitrary identifiers, and ends the Fanmaker session, both in memory and on the device. Identifiers and the session survive app restarts, so without it the next person to open the Fanmaker UI on that device is signed in as the previous fan.
 
-`logout()` also clears the cookies and stored website data of the SDK's webview, so neither Fanmaker's pages nor a sign-in provider such as Ticketmaster can sign the next person in as the previous fan. The SDK's webview keeps that data in a WebView profile of its own, so `logout()` leaves your app's own WebViews alone. On a device whose Android System WebView is too old for profiles, every WebView in an app shares one store, and `logout()` clears all of it. To act once everything is cleared, pass a completion, which runs on the main thread:
+`logout()` also clears the cookies and stored website data of the SDK's webview, so neither Fanmaker's pages nor a sign-in provider such as Ticketmaster can sign the next person in as the previous fan. The SDK's webview keeps that data in a WebView profile of its own, so `logout()` leaves your app's own WebViews alone. On a device whose Android System WebView is too old for profiles, every WebView in an app shares one store, so `logout()` clears only the cookies and stored data of Fanmaker's own hosts, and leaves your app's (and sign-in providers') data alone. To act once everything is cleared, pass a completion, which runs on the main thread:
 
 ```kotlin
 fanMakerSDK?.logout {

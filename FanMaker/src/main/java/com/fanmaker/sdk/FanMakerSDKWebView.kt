@@ -305,7 +305,6 @@ class FanMakerSDKWebView : AppCompatActivity() {
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                 Log.w("FANMAKER", "Loading URL: ${request?.url}")
-                if (request != null && fanMakerSDK?.openTappedExternalLink(this@FanMakerSDKWebView, view?.url, request) == true) return true
                 return super.shouldOverrideUrlLoading(view, request)
             }
         }
@@ -321,9 +320,18 @@ class FanMakerSDKWebView : AppCompatActivity() {
         // Allow mixed content for Charles Proxy debugging
         webView.settings.mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
 
+        // New-window requests (target="_blank", window.open) come to
+        // onCreateWindow, which sends a tap off first-party hosts to the
+        // browser and loads anything else here, as 4.0 did.
+        webView.settings.setSupportMultipleWindows(true)
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 request?.grant(request?.resources)
+            }
+
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                val sdk = fanMakerSDK ?: return false
+                return view != null && sdk.routeNewWindow(this@FanMakerSDKWebView, view, isUserGesture, resultMsg)
             }
 
             private fun openFileChooser(uploadMsg: ValueCallback<Uri>) {

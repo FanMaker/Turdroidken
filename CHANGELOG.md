@@ -12,6 +12,8 @@
 - The SDK compiles against API 36, and host apps must too: `androidx.browser`, which provides the Auth Tab, requires it. Apps updating on Google Play already target 36.
 
 #### Fixed
+- `logout()` on a WebView without profile support no longer clears the whole app's cookies and web storage, which signed the fan out of the host app's own webviews. It now clears only Fanmaker's hosts.
+- Links a Fanmaker page opens in a new window (`target="_blank"`, `window.open`) to a host that isn't first-party open in the system browser when the fan tapped them; anything else loads in the webview, as in 4.0. Same-window taps stay in the webview, as in 4.0, so store checkouts and partner pages opened in place keep the fan's session. This replaces the 4.1.0 rule that sent same-window taps out too.
 - Stored identifiers come back on launch only while the fan has a session token, and only when the host passes none of its own; the first identifier a host sets in a launch replaces the restored set (the push token doesn't count). Restoring them on every launch signed the previous fan back in on a shared device, for hosts with no `logout()` call.
 - Closing a duplicate FanMaker screen (a second launch for a key that already has one open, e.g. a double tap) no longer crashes the app on destroy.
 - `present()` called with an application or service context (a push handler) no longer throws; it starts the screen in a new task.
@@ -27,7 +29,6 @@
 - The webview no longer shows the host app's name above Fanmaker content.
 - The SDK version now reaches device records for third-party hosts. The webview sends the display name, app version, package name, OS version and device model Fanmaker needs to record it.
 - Deep links keep their percent-encoding. `q=a%26b` used to arrive as two parameters, and an encoded redirect URL was cut at its own first `&`. A query on the configured base URL is kept, with the link's after it, as on iOS.
-- A link the fan taps on one of our pages that leads off first-party hosts opens in the system browser. The SSO sign-in tap, taps on a provider's own pages and redirects stay in the webview.
 
 #### Security
 - `FanMakerSDKWebView` is no longer exported. It had been since 1.4, with no intent filter, so any app on the device could open the Fanmaker screen inside the host app. Starting it with an explicit intent or `present()` is unchanged. A host that gave it an intent filter in its own manifest must route those links through its own activity instead.
