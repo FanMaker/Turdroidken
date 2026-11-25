@@ -12,6 +12,10 @@
 - The SDK compiles against API 36, and host apps must too: `androidx.browser`, which provides the Auth Tab, requires it. Apps updating on Google Play already target 36.
 
 #### Fixed
+- Closing a duplicate FanMaker screen (a second launch for a key that already has one open, e.g. a double tap) no longer crashes the app on destroy.
+- `present()` called with an application or service context (a push handler) no longer throws; it starts the screen in a new task.
+- A sign-in on a device with no browser no longer crashes; the page falls back to its webview login.
+- A link tapped as the SDK fragment is being detached no longer throws.
 - Hosts that minify no longer crash as soon as beacon ranging starts. `consumer-rules.pro` was empty, and R8 stripped the constructor AltBeacon calls reflectively.
 - Setting `locationEnabled = true` after `onResume` sends the ping `onResume` missed, so the host's call order no longer matters.
 - A skipped location ping names the condition that caused it, instead of always blaming permissions.

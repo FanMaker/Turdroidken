@@ -1,5 +1,6 @@
 package com.fanmaker.sdk
 
+import android.content.ActivityNotFoundException
 import android.content.Context
 import android.util.Log
 import android.webkit.WebView
@@ -80,7 +81,14 @@ internal class FanMakerSDKAuthSession(
             // No Auth Tab in this browser: a Custom Tab, and the sign-in comes
             // back through the host app's own deep link for the scheme.
             Log.i(TAG, "opening ${request.url} in a Custom Tab, browser $browser has no Auth Tab")
-            CustomTabsIntent.Builder().setEphemeralBrowsingEnabled(!request.shared).build().launchUrl(context, request.url)
+            try {
+                CustomTabsIntent.Builder().setEphemeralBrowsingEnabled(!request.shared).build().launchUrl(context, request.url)
+            } catch (e: ActivityNotFoundException) {
+                // No browser at all: the page falls back to its webview login.
+                Log.e(TAG, "no browser can open ${request.url}", e)
+                report("failed")
+                return
+            }
             // No result comes back from a Custom Tab, so say so now: the page
             // must not wait on this sign-in.
             report("browser")

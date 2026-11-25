@@ -629,7 +629,9 @@ class FanMakerSDKWebView : AppCompatActivity() {
         @Suppress("DEPRECATION")
         ActivityTracker.unregister(this)
         releaseRunningKey(this)
-        cameraExecutor.shutdown()
+        // Unset when onCreate finished early (a duplicate screen for this key, or
+        // no SDK instance); shutting it down then threw and killed the app.
+        if (::cameraExecutor.isInitialized) cameraExecutor.shutdown()
     }
 
     /**
