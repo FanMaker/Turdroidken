@@ -17,10 +17,14 @@ import androidx.webkit.WebViewFeature
  * link the sign-in ends on, which loads into the webview like any deep link.
  * FanMaker/NUX#907.
  *
- * Private (ephemeral) browsing, so a sign-in neither uses nor changes the
- * fan's own browser session. Ticketmaster's flow signs the fan out of
- * Ticketmaster before signing in; in a shared session that signed them out
+ * Private (ephemeral) browsing by default, so a sign-in neither uses nor
+ * changes the fan's own browser session. Ticketmaster's flow signs the fan out
+ * of Ticketmaster before signing in; in a shared session that signed them out
  * of their own browser on every FanMaker login. Passkeys still work.
+ *
+ * Shared only when the page asks with `"shared": true`: SeatGeek's sign-in has
+ * to reuse the one the host app made in the browser's session, so the fan is
+ * not asked again and cannot pick another account. FanMaker/NUX#1023.
  *
  * A page asks with
  * `window.fanmakerAuthSession.postMessage(JSON.stringify({ url, callbackScheme }))`.
@@ -70,13 +74,13 @@ internal class FanMakerSDKAuthSession(
         val browser = CustomTabsClient.getPackageName(context, null)
         if (browser != null && CustomTabsClient.isAuthTabSupported(context, browser)) {
             Log.i(TAG, "opening ${request.url} in an Auth Tab")
-            AuthTabIntent.Builder().setEphemeralBrowsingEnabled(true).build()
+            AuthTabIntent.Builder().setEphemeralBrowsingEnabled(!request.shared).build()
                 .launch(launcher, request.url, request.callbackScheme)
         } else {
             // No Auth Tab in this browser: a Custom Tab, and the sign-in comes
             // back through the host app's own deep link for the scheme.
             Log.i(TAG, "opening ${request.url} in a Custom Tab, browser $browser has no Auth Tab")
-            CustomTabsIntent.Builder().setEphemeralBrowsingEnabled(true).build().launchUrl(context, request.url)
+            CustomTabsIntent.Builder().setEphemeralBrowsingEnabled(!request.shared).build().launchUrl(context, request.url)
             // No result comes back from a Custom Tab, so say so now: the page
             // must not wait on this sign-in.
             report("browser")
@@ -116,3 +120,9 @@ internal class FanMakerSDKAuthSession(
  * in, and logcat ends up in bug reports.
  */
 internal fun withoutSignInKey(url: String): String = url.replace(Regex("/sso_login/[^/?#]+"), "/sso_login/…")
+
+/**
+ * Whether an authSession message's `shared` value asks for the shared browser
+ * session. Only a JSON `true` does; anything else keeps the private default.
+ */
+internal fun wantsSharedSession(value: Any?): Boolean = value == true

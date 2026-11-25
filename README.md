@@ -501,6 +501,8 @@ Only a tap that replaces the whole page, on a Fanmaker page, does this. Redirect
 
 Some sign-ins don't work inside an embedded webview: Ticketmaster's passkeys only work on ticketmaster.com, and some identity providers refuse embedded webviews. For those, the Fanmaker page asks the SDK to run the sign-in in Chrome's **Auth Tab**, as a private session, so it neither uses nor changes the fan's own browser sign-ins. Passkeys work there. When the sign-in finishes, the Auth Tab hands the result back to the SDK, which loads it into the webview. You don't need to wire anything up.
 
+SeatGeek sign-ins are the exception: they use the browser's shared session, so a fan your app already signed in to SeatGeek through the browser is signed in to Fanmaker with that same account, without signing in again.
+
 If the fan's browser doesn't support Auth Tab, the SDK opens a Custom Tab instead, and the sign-in comes back to your app as a `<scheme>://fanmaker/...` deep link, where `<scheme>` is the scheme Fanmaker has configured for your site. The `handleDeepLink` example above (`openUrl`, then `present()`) handles it.
 
 This is why the SDK requires `compileSdk 36`: `androidx.browser`, which provides the Auth Tab, requires it.
