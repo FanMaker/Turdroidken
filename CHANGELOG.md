@@ -12,6 +12,7 @@
 - The SDK compiles against API 36, and host apps must too: `androidx.browser`, which provides the Auth Tab, requires it. Apps updating on Google Play already target 36.
 
 #### Fixed
+- Stored identifiers come back on launch only while the fan has a session token, and only when the host passes none of its own; the first identifier a host sets in a launch replaces the restored set (the push token doesn't count). Restoring them on every launch signed the previous fan back in on a shared device, for hosts with no `logout()` call.
 - Closing a duplicate FanMaker screen (a second launch for a key that already has one open, e.g. a double tap) no longer crashes the app on destroy.
 - `present()` called with an application or service context (a push handler) no longer throws; it starts the screen in a new task.
 - A sign-in on a device with no browser no longer crashes; the page falls back to its webview login.

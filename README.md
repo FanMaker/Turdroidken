@@ -548,7 +548,7 @@ class MyActivity : AppCompatActivity() {
 ```
 Note: you may only have 1 identifier per key. If you require more, please contact Fanmaker.
 
-These identifiers must be set **before** displaying the Fanmaker UI. The SDK saves them on the device and restores them when your app restarts, so you only need to set them again when they change. When a fan signs out, clear them with `logout()` (see [Signing out](#signing-out)).
+These identifiers must be set **before** displaying the Fanmaker UI. The SDK saves them on the device and restores them when your app restarts while the fan still has a Fanmaker session, so you only need to set them again when they change. The first identifier you set in a launch replaces the restored ones, so a new fan never carries the last fan's IDs (the push token doesn't count). When a fan signs out, clear them with `logout()` (see [Signing out](#signing-out)).
 
 ### Passing Custom Parameters
 
