@@ -112,6 +112,7 @@ class FanMakerSDK(
     var userID: String
         get() = _userID
         set(value) {
+            adoptHostIdentifiers()
             _userID = value
             persistIdentifier(KEY_USER_ID, value)
         }
@@ -119,6 +120,7 @@ class FanMakerSDK(
     var memberID: String
         get() = _memberID
         set(value) {
+            adoptHostIdentifiers()
             _memberID = value
             persistIdentifier(KEY_MEMBER_ID, value)
         }
@@ -126,6 +128,7 @@ class FanMakerSDK(
     var studentID: String
         get() = _studentID
         set(value) {
+            adoptHostIdentifiers()
             _studentID = value
             persistIdentifier(KEY_STUDENT_ID, value)
         }
@@ -133,6 +136,7 @@ class FanMakerSDK(
     var ticketmasterID: String
         get() = _ticketmasterID
         set(value) {
+            adoptHostIdentifiers()
             _ticketmasterID = value
             persistIdentifier(KEY_TICKETMASTER_ID, value)
         }
@@ -140,6 +144,7 @@ class FanMakerSDK(
     var yinzid: String
         get() = _yinzid
         set(value) {
+            adoptHostIdentifiers()
             _yinzid = value
             persistIdentifier(KEY_YINZID, value)
         }
@@ -396,6 +401,7 @@ class FanMakerSDK(
      * "log out" simply by not setting them again on the next launch.
      */
     fun clearIdentifiers() {
+        holdsRestoredIdentifiers = false
         _userID = ""
         _memberID = ""
         _studentID = ""
@@ -419,13 +425,46 @@ class FanMakerSDK(
         if (current.isNotEmpty()) current
         else fanMakerSharedPreferences.getString(key, current) ?: current
 
+    // True while the fan identifiers in memory are the ones restored at launch
+    // and nobody has set one since.
+    private var holdsRestoredIdentifiers = false
+
+    /**
+     * Called by every fan-identifier setter (not the push token, which is the
+     * device's). The first value the host or web bridge sets this launch
+     * replaces the restored set as a whole: the restored IDs may belong to
+     * whoever used the device last, and must not be sent alongside a new fan's.
+     */
+    private fun adoptHostIdentifiers() {
+        if (!holdsRestoredIdentifiers) return
+        holdsRestoredIdentifiers = false
+        _userID = ""; persistIdentifier(KEY_USER_ID, "")
+        _memberID = ""; persistIdentifier(KEY_MEMBER_ID, "")
+        _studentID = ""; persistIdentifier(KEY_STUDENT_ID, "")
+        _ticketmasterID = ""; persistIdentifier(KEY_TICKETMASTER_ID, "")
+        _yinzid = ""; persistIdentifier(KEY_YINZID, "")
+        _arbitraryIdentifiers.clear()
+    }
+
     private fun restoreIdentifiers() {
-        _userID = restoredValue(KEY_USER_ID, _userID)
-        _memberID = restoredValue(KEY_MEMBER_ID, _memberID)
-        _studentID = restoredValue(KEY_STUDENT_ID, _studentID)
-        _ticketmasterID = restoredValue(KEY_TICKETMASTER_ID, _ticketmasterID)
-        _yinzid = restoredValue(KEY_YINZID, _yinzid)
+        // The push token is the device's, so it comes back regardless.
         _pushNotificationToken = restoredValue(KEY_PUSH_TOKEN, _pushNotificationToken)
+
+        // Fan identifiers come back only alongside a live session token, as the
+        // iOS SDK did in 4.0, and only when the host passed none to the
+        // constructor. Restoring them unconditionally signed the PREVIOUS fan
+        // back in on a shared device: a host built against 4.0.3 has no
+        // logout(), so its sign-out was "stop setting identifiers", and the
+        // restored ones were posted to site/auth/auto_login on the next open.
+        val token = fanMakerSharedPreferences.getString("token", "") ?: ""
+        val restoreFan = shouldRestoreFanIdentifiers(token, listOf(_userID, _memberID, _studentID, _ticketmasterID, _yinzid))
+        if (restoreFan) {
+            _userID = restoredValue(KEY_USER_ID, _userID)
+            _memberID = restoredValue(KEY_MEMBER_ID, _memberID)
+            _studentID = restoredValue(KEY_STUDENT_ID, _studentID)
+            _ticketmasterID = restoredValue(KEY_TICKETMASTER_ID, _ticketmasterID)
+            _yinzid = restoredValue(KEY_YINZID, _yinzid)
+        }
         // A queued destination is only worth replaying for as long as it
         // plausibly belongs to the tap that queued it. deepLinkUrl used to be
         // memory-only, so it could never outlive the process; persisting it
@@ -446,7 +485,7 @@ class FanMakerSDK(
         }
 
         val encoded = fanMakerSharedPreferences.getString(KEY_ARBITRARY_IDENTIFIERS, "")
-        if (_arbitraryIdentifiers.isEmpty() && !encoded.isNullOrEmpty()) {
+        if (restoreFan && _arbitraryIdentifiers.isEmpty() && !encoded.isNullOrEmpty()) {
             try {
                 val decoded = Json.decodeFromString(
                     MapSerializer(String.serializer(), String.serializer()),
@@ -459,6 +498,7 @@ class FanMakerSDK(
                 Log.e("FanMakerSDK", "could not restore arbitrary identifiers: ${e.message}")
             }
         }
+        holdsRestoredIdentifiers = restoreFan
     }
 
     fun updateBaseUrl(url: String) {
@@ -1134,3 +1174,11 @@ internal fun asciiJsonString(value: String): String = buildString {
     }
     append('"')
 }
+
+/**
+ * Whether initialize() brings back the last fan's stored identifiers: only with
+ * a live session token, and only when the host passed no fan identifier of its
+ * own this launch. See FanMakerSDK.restoreIdentifiers.
+ */
+internal fun shouldRestoreFanIdentifiers(sessionToken: String, hostSupplied: List<String>): Boolean =
+    sessionToken.isNotEmpty() && hostSupplied.all { it.isEmpty() }
