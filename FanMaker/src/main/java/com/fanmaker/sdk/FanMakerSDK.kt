@@ -678,7 +678,7 @@ class FanMakerSDK(
     }
 
     /** A sign-in a page asked to run in an Auth Tab: where it starts, and the scheme of the link it ends on. */
-    internal data class AuthSessionRequest(val url: Uri, val callbackScheme: String)
+    internal data class AuthSessionRequest(val url: Uri, val callbackScheme: String, val shared: Boolean = false)
 
     /**
      * The sign-in an authSession message asks for, or null when it has to be
@@ -695,7 +695,7 @@ class FanMakerSDK(
         val scheme = body.optString("callbackScheme").lowercase()
         if (!scheme.matches(Regex("[a-z][a-z0-9+.-]*")) ||
             scheme in setOf("http", "https", "javascript", "data", "file", "about", "intent", "content")) return null
-        return AuthSessionRequest(url, scheme)
+        return AuthSessionRequest(url, scheme, wantsSharedSession(body.opt("shared")))
     }
 
     /**
