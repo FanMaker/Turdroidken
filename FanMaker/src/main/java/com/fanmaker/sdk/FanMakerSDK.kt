@@ -277,6 +277,9 @@ class FanMakerSDK(
             Log.i("FanMakerSDK", "a webview is already open for '$instanceKey'; reusing it")
         }
 
+        // From a push handler or service (application context) Android refuses
+        // to start an activity without a new task, and throws.
+        if (context !is android.app.Activity) intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
         return true
     }

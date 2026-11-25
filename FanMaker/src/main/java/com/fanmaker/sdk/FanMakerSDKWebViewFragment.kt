@@ -232,7 +232,10 @@ class FanMakerSDKWebViewFragment : Fragment() {
             }
 
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                if (request != null && fanMakerSDK?.openTappedExternalLink(requireContext(), view?.url, request) == true) return true
+                // context, not requireContext(): a callback after the fragment
+                // detached threw IllegalStateException.
+                val ctx = context ?: return super.shouldOverrideUrlLoading(view, request)
+                if (request != null && fanMakerSDK?.openTappedExternalLink(ctx, view?.url, request) == true) return true
                 return super.shouldOverrideUrlLoading(view, request)
             }
         }
