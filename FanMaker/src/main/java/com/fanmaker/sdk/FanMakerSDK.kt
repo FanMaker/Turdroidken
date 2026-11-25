@@ -17,6 +17,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.ActivityNotFoundException
 import android.webkit.WebResourceRequest
+import android.webkit.WebView
 import org.json.JSONException
 import org.json.JSONObject
 import android.content.SharedPreferences
@@ -363,16 +364,45 @@ class FanMakerSDK(
         // Fanmaker's pages and sign-in providers keep their own state in the
         // webview, which would otherwise open the next fan's session as this one.
         // Profiles and both stores want the main thread.
+        val ownHosts = (listOfNotNull(Uri.parse(baseUrl).host) + allowedDomains).map { it.lowercase() }.distinct()
         android.os.Handler(android.os.Looper.getMainLooper()).post {
             val profile = ownWebProfile()
-            (profile?.webStorage ?: android.webkit.WebStorage.getInstance()).deleteAllData()
-            val cookies = profile?.cookieManager ?: android.webkit.CookieManager.getInstance()
-            cookies.removeAllCookies {
-                cookies.flush()
-                Log.i("FanMakerSDK", "logged out: identifiers, session token and web data cleared")
+            if (profile != null) {
+                // The SDK webview's own profile: everything in it is ours.
+                profile.webStorage.deleteAllData()
+                profile.cookieManager.removeAllCookies {
+                    profile.cookieManager.flush()
+                    Log.i("FanMakerSDK", "logged out: identifiers, session token and web data cleared")
+                    completion?.invoke()
+                }
+            } else {
+                // No profiles on this WebView: one cookie jar and one web storage
+                // for every webview in the app. Clearing all of it signed the fan
+                // out of the host app's own webviews, so clear only our hosts.
+                clearOwnWebData(ownHosts)
+                Log.i("FanMakerSDK", "logged out: identifiers, session token and our hosts' web data cleared")
                 completion?.invoke()
             }
         }
+    }
+
+    /**
+     * Without a profile of its own, the SDK webview shares the app's cookie jar
+     * and web storage. Expires only the cookies our hosts send and deletes only
+     * our origins' storage, so the host app's own webviews keep their sessions.
+     */
+    private fun clearOwnWebData(ownHosts: List<String>) {
+        val cookies = android.webkit.CookieManager.getInstance()
+        val storage = android.webkit.WebStorage.getInstance()
+        for (host in ownHosts) {
+            val origin = "https://$host"
+            storage.deleteOrigin(origin)
+            val names = cookieNames(cookies.getCookie(origin))
+            for (name in names) {
+                for (expiry in expiringCookies(name, host)) cookies.setCookie(origin, expiry)
+            }
+        }
+        cookies.flush()
     }
 
     /**
@@ -568,27 +598,49 @@ class FanMakerSDK(
         sourceUrl != null && !isExternalWebUrl(sourceUrl) && isExternalWebUrl(url)
 
     /**
-     * Hands a tapped link to the system browser when it leaves first-party
-     * territory, so a partner or ticketing page doesn't load inside the SDK with
-     * no browser chrome and none of the fan's session. Returns true when it did,
-     * which is the webview's cue to cancel the load.
-     *
-     * Deliberately narrow, matching iOS: only a tap that replaces the whole page -
-     * never a redirect, a script-driven navigation or an embedded frame - and only
-     * from one of our own pages. POSTs never reach shouldOverrideUrlLoading.
+     * Routes a request for a new window (`target="_blank"`, `window.open`) from
+     * the SDK webview, called from WebChromeClient.onCreateWindow. A fan's tap
+     * on one of our pages that leaves first-party hosts opens in the system
+     * browser; anything else loads in the webview itself, which is where 4.0
+     * put every new-window request. A same-window tap is never routed here and
+     * stays in the webview as in 4.0, so store checkouts and partner pages that
+     * NUX opens in place keep the fan's session.
      */
-    internal fun openTappedExternalLink(context: Context, sourceUrl: String?, request: WebResourceRequest): Boolean {
-        if (!request.isForMainFrame || !request.hasGesture() || request.isRedirect) return false
-        val url = request.url.toString()
-        if (!shouldOpenInBrowser(url, sourceUrl)) return false
-        return try {
-            context.startActivity(Intent(Intent.ACTION_VIEW, request.url).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-            Log.i("FanMakerSDK", "handing $url to the system browser: not a first-party host")
-            true
-        } catch (e: ActivityNotFoundException) {
-            Log.w("FanMakerSDK", "no app can open $url; loading it in the webview instead")
-            false
+    internal fun routeNewWindow(context: Context, parent: WebView, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+        val transport = resultMsg?.obj as? WebView.WebViewTransport ?: return false
+        val source = parent.url
+        val catcher = WebView(context)
+        var handled = false
+        fun route(url: String?) {
+            if (handled || url.isNullOrEmpty() || url == "about:blank") return
+            handled = true
+            val toBrowser = ejectsToBrowser(opensANewWindow = true, isUserGesture = isUserGesture,
+                offFirstParty = shouldOpenInBrowser(url, source))
+            val opened = toBrowser && try {
+                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                Log.i("FanMakerSDK", "handing new-window link $url to the system browser: not a first-party host")
+                true
+            } catch (e: ActivityNotFoundException) {
+                Log.w("FanMakerSDK", "no app can open $url; loading it in the webview instead")
+                false
+            }
+            if (!opened) parent.loadUrl(url)
+            mainHandler.post { catcher.destroy() }
         }
+        catcher.webViewClient = object : android.webkit.WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                route(request?.url?.toString())
+                return true
+            }
+
+            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                view?.stopLoading()
+                route(url)
+            }
+        }
+        transport.webView = catcher
+        resultMsg.sendToTarget()
+        return true
     }
 
     /** Stores what the webview needs from a site_details/sdk response. */
@@ -1182,3 +1234,25 @@ internal fun asciiJsonString(value: String): String = buildString {
  */
 internal fun shouldRestoreFanIdentifiers(sessionToken: String, hostSupplied: List<String>): Boolean =
     sessionToken.isNotEmpty() && hostSupplied.all { it.isEmpty() }
+
+/**
+ * Whether a navigation leaves the SDK webview for the system browser: only a
+ * new-window request the fan made with a tap, from one of our pages, to a host
+ * that isn't first-party. 4.1.0 review: ejecting same-window taps too sent
+ * store checkouts and partner links out of the app, which 4.0 never did.
+ */
+internal fun ejectsToBrowser(opensANewWindow: Boolean, isUserGesture: Boolean, offFirstParty: Boolean): Boolean =
+    opensANewWindow && isUserGesture && offFirstParty
+
+/** Cookie names out of a CookieManager.getCookie() header ("a=1; b=2"). */
+internal fun cookieNames(header: String?): List<String> =
+    header.orEmpty().split(";").map { it.substringBefore("=").trim() }.filter { it.isNotEmpty() }
+
+/**
+ * Set-Cookie values that expire `name` whether it was set host-only or for
+ * exactly `host`. Never a parent domain: that cookie may be the host app's.
+ */
+internal fun expiringCookies(name: String, host: String): List<String> = listOf(
+    "$name=; Max-Age=0; Path=/",
+    "$name=; Max-Age=0; Path=/; Domain=$host"
+)
