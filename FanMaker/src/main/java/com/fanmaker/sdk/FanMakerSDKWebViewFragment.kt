@@ -61,6 +61,7 @@ import com.fanmaker.sdk.FanMakerSDKs
 class FanMakerSDKWebViewFragment : Fragment() {
     // Activity Result Launchers for file chooser and image picker
     private lateinit var fileChooserLauncher: androidx.activity.result.ActivityResultLauncher<Intent>
+    private lateinit var authSession: FanMakerSDKAuthSession
     private lateinit var imagePickerLauncher: androidx.activity.result.ActivityResultLauncher<androidx.activity.result.PickVisualMediaRequest>
     private lateinit var fanMakerSDK: FanMakerSDK
     private lateinit var fanMakerSharedPreferences: FanMakerSharedPreferences
@@ -123,6 +124,25 @@ class FanMakerSDKWebViewFragment : Fragment() {
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
+        authSession = FanMakerSDKAuthSession(this,
+            context = { activity },
+            // Looked up by key, as the activity does: onCreateView keeps its
+            // instance in a local, and the fanMakerSDK property is never set.
+            sdk = {
+                val key = activity?.intent?.getStringExtra("fanMakerKey")
+                val context = context
+                if (key != null && context != null) FanMakerSDKs.getInstance(context, key) else null
+            },
+            webView = { view?.findViewById(R.id.fanmaker_sdk_webview) },
+            loadDestination = { sdk ->
+                sdk.formatUrl { url ->
+                    activity?.runOnUiThread {
+                        view?.findViewById<WebView>(R.id.fanmaker_sdk_webview)?.loadUrl(url, sdk.webViewHeaders())
+                    }
+                }
+            }
+        )
+
         // Register ActivityResultLauncher for file chooser
         fileChooserLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == Activity.RESULT_OK) {
@@ -154,6 +174,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         cameraExecutor = Executors.newSingleThreadExecutor()
 
         val webView = viewBinding.root.findViewById<WebView>(R.id.fanmaker_sdk_webview)
+        FanMakerSDK.useOwnWebProfile(webView)
         
         // Enable WebView debugging for Chrome DevTools
         // if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -169,7 +190,11 @@ class FanMakerSDKWebViewFragment : Fragment() {
             return viewBinding.root
         }
 
-        val fanMakerSDK = FanMakerSDKs.getInstance(fanMakerKey)
+        // Context-aware lookup so a fragment host started from a push tap can
+        // rebuild the instance rather than failing to resolve it. The one-webview
+        // -per-key rule is deliberately not applied here: a fragment's lifecycle
+        // belongs to the host activity that placed it.
+        val fanMakerSDK = FanMakerSDKs.getInstance(requireContext(), fanMakerKey)
         if (fanMakerSDK == null) {
             Log.e("FanMakerSDKWebViewFragment", "Failed to get instance of FanMakerSDK.")
             return viewBinding.root
@@ -205,6 +230,10 @@ class FanMakerSDKWebViewFragment : Fragment() {
                 super.onPageFinished(view, url)
                 loadingFrame.visibility = FrameLayout.GONE
             }
+
+            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+                return super.shouldOverrideUrlLoading(view, request)
+            }
         }
 
         fanMakerSharedPreferences = FanMakerSharedPreferences(requireContext(), fanMakerSDK!!.apiKey)
@@ -217,9 +246,20 @@ class FanMakerSDKWebViewFragment : Fragment() {
 
         // if(!isPermissionGranted()) { askPermissions() }
 
+        // New-window requests (target="_blank", window.open) come to
+        // onCreateWindow, which sends a tap off first-party hosts to the
+        // browser and loads anything else here, as 4.0 did.
+        webView.settings.setSupportMultipleWindows(true)
         webView.webChromeClient = object : WebChromeClient() {
             override fun onPermissionRequest(request: PermissionRequest?) {
                 request?.grant(request?.resources)
+            }
+
+            override fun onCreateWindow(view: WebView?, isDialog: Boolean, isUserGesture: Boolean, resultMsg: android.os.Message?): Boolean {
+                // context, not requireContext(): this can arrive after the fragment detached.
+                val ctx = context ?: return false
+                val sdk = fanMakerSDK ?: return false
+                return view != null && sdk.routeNewWindow(ctx, view, isUserGesture, resultMsg)
             }
 
             private fun openFileChooser(uploadMsg: ValueCallback<Uri>) {
@@ -322,6 +362,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
         )
 
         webView.addJavascriptInterface(jsInterface, "fanmaker")
+        authSession.attach(webView)
 
         val queue = Volley.newRequestQueue(requireActivity())
         val url = "${FanMakerSDKHttpRequest.URL}/site_details/sdk"
@@ -334,8 +375,7 @@ class FanMakerSDKWebViewFragment : Fragment() {
                 val status = response.getInt("status")
                 if (status == 200) {
                     val data = response.getJSONObject("data")
-                    val sdk_url = data.getString("url")
-                    fanMakerSDK!!.updateBaseUrl(sdk_url)
+                    fanMakerSDK!!.applySiteDetails(data)
                     fanMakerSDK!!.formatUrl { formattedUrl ->
                         Log.w("FanMakerSDK", formattedUrl)
                         webView.loadUrl(formattedUrl, fanMakerSDK!!.webViewHeaders())

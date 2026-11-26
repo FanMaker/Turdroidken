@@ -10,9 +10,22 @@
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
     <uses-feature android:name="android.hardware.camera" android:required="false" />
+
+    <!-- Lets the SDK find the browser for sign-ins in an Auth Tab or Custom
+         Tab; without it Android 11+ hides every browser from the lookup. -->
+    <queries>
+        <intent>
+            <action android:name="android.support.customtabs.action.CustomTabsService" />
+        </intent>
+    </queries>
     <uses-feature android:name="android.hardware.camera.front" android:required="false" />
     <application>
-        <activity android:name=".FanMakerSDKWebView" android:exported="true" />
+        <!-- Not exported: only the host app starts it, with an explicit intent
+             or present(). Exported, any app on the device could open it. -->
+        <activity
+            android:name=".FanMakerSDKWebView"
+            android:exported="false"
+            android:theme="@style/Theme.FanMakerSDK" />
         
         <provider
             android:name="FanMakerSDKFileProvider"

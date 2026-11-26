@@ -1,0 +1,34 @@
+### 4.1.0 - Unreleased
+#### Added
+- `present(context, path)`, `isPresenting` and `dismiss()`. The SDK starts and closes its own screen, so a host no longer builds the intent or needs to know the `fanMakerKey` extra.
+- `logout(completion)`, `clearSessionToken()` and `clearIdentifiers()`. There was previously no way to end a session; process death was the only reset. `logout()` also clears the SDK webview's cookies and stored site data, so Fanmaker's pages and sign-in providers can't open the next person's session as the previous fan. The SDK's webview keeps that data in a WebView profile of its own (`androidx.webkit` multi-profile), so the host app's own WebViews are untouched; on a WebView too old for profiles, all of the app's WebView data is cleared. A fan's existing web session lived in the shared profile, so a fan may need to sign in once after updating.
+- `openUrl(url)`, which reports whether the SDK took a link, and `openPath(path)` for a bare path. `handleUrl` still returns `Unit`, so hosts compiled against 4.0.x keep linking.
+- `getInstance(context, key)`, which rebuilds an instance from persisted state, so a cold-start push tap works before the host has initialized the SDK.
+- `enableForegroundServiceScanning()` on `FanMakerSDKBeaconManager` keeps beacons scanning in the background, behind AltBeacon's foreground service, with a 1.5 s scan twice a minute. The SDK builds the notification Android requires, or the host passes its own. A host no longer has to configure AltBeacon itself. A missing manifest entry is logged instead of crashing, and scanning waits for the location and Nearby devices grants, since starting the service without them crashes on Android 14+.
+- Sign-ins that can't work in a webview run in Chrome's Auth Tab instead, when Fanmaker's page asks through `window.fanmakerAuthSession`. It runs as a private session, so it leaves the fan's own browser sign-ins alone; passkeys work there, so Ticketmaster's passkey button works and the fan never leaves the app; the SDK loads the link the sign-in ends on into its webview, and tells the page when the fan cancels. A browser without Auth Tab gets a Custom Tab, returning through the host app's deep link. Only the main frame of one of our own pages can ask, and only for a start URL on one of our hosts.
+- A Fanmaker page can ask for the sign-in session to be shared (`"shared": true`) instead of private. SeatGeek SSO uses this: the sign-in reuses the SeatGeek account the host app already signed the fan in to in the browser, so the fan is not asked to sign in again and cannot pick a different saved account. Ticketmaster stays private.
+
+#### Changed
+- The SDK compiles against API 36, and host apps must too: `androidx.browser`, which provides the Auth Tab, requires it. Apps updating on Google Play already target 36.
+
+#### Fixed
+- `logout()` on a WebView without profile support no longer clears the whole app's cookies and web storage, which signed the fan out of the host app's own webviews. It now clears only Fanmaker's hosts.
+- Links a Fanmaker page opens in a new window (`target="_blank"`, `window.open`) to a host that isn't first-party open in the system browser when the fan tapped them; anything else loads in the webview, as in 4.0. Same-window taps stay in the webview, as in 4.0, so store checkouts and partner pages opened in place keep the fan's session. This replaces the 4.1.0 rule that sent same-window taps out too.
+- Stored identifiers come back on launch only while the fan has a session token, and only when the host passes none of its own; the first identifier a host sets in a launch replaces the restored set (the push token doesn't count). Restoring them on every launch signed the previous fan back in on a shared device, for hosts with no `logout()` call.
+- Closing a duplicate FanMaker screen (a second launch for a key that already has one open, e.g. a double tap) no longer crashes the app on destroy.
+- `present()` called with an application or service context (a push handler) no longer throws; it starts the screen in a new task.
+- A sign-in on a device with no browser no longer crashes; the page falls back to its webview login.
+- A link tapped as the SDK fragment is being detached no longer throws.
+- Hosts that minify no longer crash as soon as beacon ranging starts. `consumer-rules.pro` was empty, and R8 stripped the constructor AltBeacon calls reflectively.
+- Setting `locationEnabled = true` after `onResume` sends the ping `onResume` missed, so the host's call order no longer matters.
+- A skipped location ping names the condition that caused it, instead of always blaming permissions.
+- Identifiers set by a host persist across process death; values passed to the constructor still win.
+- Push destinations carrying an ordinary `https://` link to the site's own host or another domain Fanmaker has configured for the site now route into the SDK, and the webview activity validates any destination it is handed.
+- A second launch for a key that already has a webview open hands its destination to that screen instead of stacking a copy.
+- Deep links no longer compose a doubled slash, and a destination nobody opened expires after ten minutes.
+- The webview no longer shows the host app's name above Fanmaker content.
+- The SDK version now reaches device records for third-party hosts. The webview sends the display name, app version, package name, OS version and device model Fanmaker needs to record it.
+- Deep links keep their percent-encoding. `q=a%26b` used to arrive as two parameters, and an encoded redirect URL was cut at its own first `&`. A query on the configured base URL is kept, with the link's after it, as on iOS.
+
+#### Security
+- `FanMakerSDKWebView` is no longer exported. It had been since 1.4, with no intent filter, so any app on the device could open the Fanmaker screen inside the host app. Starting it with an explicit intent or `present()` is unchanged. A host that gave it an intent filter in its own manifest must route those links through its own activity instead.
